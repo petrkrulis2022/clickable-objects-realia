@@ -17,7 +17,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["audio/*"],
+      "resources": ["audio/*", "backdrops/*", "packs/*"],
       "matches": ["https://meet.google.com/*"]
     }
   ]

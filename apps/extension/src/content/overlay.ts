@@ -157,6 +157,8 @@ export interface OverlayHandle {
   setCardReveal(cardId: string, stage: 0 | 1 | 2 | 3): void;
   /** Teacher-only: how far the student has revealed this card. */
   setCardPeerProgress(cardId: string, stage: 0 | 1 | 2 | 3): void;
+  /** Reserves space on the left for the teacher panel so the stage never overlaps it. */
+  setLeftInset(px: number): void;
   onResize(cb: (stage: StageRect) => void): void;
   destroy(): void;
 }
@@ -207,7 +209,8 @@ export function mountOverlay(): OverlayHandle {
 
   document.body.appendChild(host);
 
-  let stage = computeStage(window.innerWidth, window.innerHeight);
+  let leftInsetPx = 0;
+  let stage = computeStage(window.innerWidth, window.innerHeight, leftInsetPx);
   const objectEls = new Map<string, HTMLElement>();
   let lastObjects: StageObject[] = [];
   const resizeCbs: Array<(s: StageRect) => void> = [];
@@ -326,7 +329,10 @@ export function mountOverlay(): OverlayHandle {
       return;
     }
 
-    incoming.style.backgroundImage = `url("${backdrop.src}")`;
+    // backdrop.src is a pack-relative path (e.g. "backdrops/livingroom.jpg"),
+    // shipped with the extension per docs/PRD.md, "A backdrop is a
+    // picture, not an object... packaged with the pack, never a remote URL."
+    incoming.style.backgroundImage = `url("${chrome.runtime.getURL(backdrop.src)}")`;
     incoming.style.backgroundSize = backdrop.fit === "contain" ? "contain" : "cover";
     incoming.style.backgroundPosition = "center";
     incoming.style.backgroundRepeat = "no-repeat";
@@ -338,8 +344,8 @@ export function mountOverlay(): OverlayHandle {
     activeBackdrop = 1 - activeBackdrop;
   }
 
-  function handleResize() {
-    stage = computeStage(window.innerWidth, window.innerHeight);
+  function recomputeStage() {
+    stage = computeStage(window.innerWidth, window.innerHeight, leftInsetPx);
     layoutStage();
     for (const obj of lastObjects) {
       const el = objectEls.get(obj.id);
@@ -348,8 +354,14 @@ export function mountOverlay(): OverlayHandle {
     for (const cb of resizeCbs) cb(stage);
   }
 
+  function setLeftInset(px: number) {
+    if (px === leftInsetPx) return;
+    leftInsetPx = px;
+    recomputeStage();
+  }
+
   layoutStage();
-  window.addEventListener("resize", handleResize);
+  window.addEventListener("resize", recomputeStage);
 
   function setZoneHighlight(zoneIds: ReadonlySet<string>) {
     for (const [id, el] of objectEls) {
@@ -389,9 +401,10 @@ export function mountOverlay(): OverlayHandle {
     setSentence,
     setCardReveal,
     setCardPeerProgress,
+    setLeftInset,
     onResize: (cb) => resizeCbs.push(cb),
     destroy: () => {
-      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("resize", recomputeStage);
       host.remove();
     },
   };

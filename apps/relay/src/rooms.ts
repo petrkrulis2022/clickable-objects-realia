@@ -1,5 +1,6 @@
 import type { LessonEvent, RoomState, Role, StageObject, Vec, Zone } from "@co/shared";
 import type { WebSocket } from "ws";
+import type { ResolvedItem } from "./packs.js";
 
 // One second of silence clears the soft lock even if the holder never
 // sends an explicit drop (crash, closed laptop lid, etc).
@@ -184,8 +185,73 @@ export function applyReveal(
   return { t: Date.now(), type: "reveal", cardId, stage, role };
 }
 
-/** Seeds a freshly created room's objects (demo scene / a pack, later). Ignored if the room already has objects. */
-export function seedIfEmpty(room: Room, objects: StageObject[]) {
-  if (Object.keys(room.state.objects).length > 0) return;
-  for (const obj of objects) room.state.objects[obj.id] = obj;
+/**
+ * Replaces the room's objects wholesale with a resolved pack item —
+ * "Advancing an item... resets objects to that item's layout"
+ * (docs/PRD.md, "7. Teacher panel and activity runner"). Mutates state
+ * only; does not broadcast (see setItem/seedInitialItem below), so a
+ * fresh room's first joiner gets one consistent 'state' snapshot
+ * rather than a 'patch' arriving ahead of it.
+ */
+function applyItem(
+  room: Room,
+  packId: string,
+  itemIndex: number,
+  resolved: ResolvedItem,
+): { changed: StageObject[]; removed: string[] } {
+  const newIds = new Set(resolved.objects.map((o) => o.id));
+  const removed = Object.keys(room.state.objects).filter((id) => !newIds.has(id));
+
+  room.state.objects = {};
+  for (const obj of resolved.objects) room.state.objects[obj.id] = obj;
+  room.state.activity = { packId, itemIndex };
+  if (resolved.backdrop !== undefined) room.state.backdrop = resolved.backdrop;
+
+  room.dragStartPos.clear();
+  for (const t of room.lockTimers.values()) clearTimeout(t);
+  room.lockTimers.clear();
+  room.itemStartedAt = Date.now();
+
+  return { changed: resolved.objects, removed };
+}
+
+/** Seeds a freshly created room's first item. No broadcast — there's no peer yet, and the joiner gets it via 'state'. */
+export function seedInitialItem(room: Room, packId: string, itemIndex: number, resolved: ResolvedItem) {
+  applyItem(room, packId, itemIndex, resolved);
+}
+
+/** Advances/changes the activity for a room that may already have a connected peer — broadcasts the change. */
+export function setItem(room: Room, packId: string, itemIndex: number, resolved: ResolvedItem) {
+  const { changed, removed } = applyItem(room, packId, itemIndex, resolved);
+  room.state.rev += 1;
+  broadcast(room, null, {
+    type: "patch",
+    rev: room.state.rev,
+    changed,
+    removed,
+    ...(resolved.backdrop !== undefined ? { backdrop: resolved.backdrop } : {}),
+  });
+}
+
+/** Teacher-only nav; ignored from the student (docs/PRD.md: "// teacher only"). */
+export function applySetActivity(
+  room: Room,
+  role: Role,
+  packId: string,
+  itemIndex: number,
+  resolved: ResolvedItem,
+): LessonEvent | null {
+  if (role !== "teacher") return null;
+  setItem(room, packId, itemIndex, resolved);
+  return { t: Date.now(), type: "item", index: itemIndex, prompt: resolved.prompt };
+}
+
+/** Teacher-only; ignored from the student (docs/PRD.md: "// teacher only"). */
+export function applyMark(
+  role: Role,
+  itemIndex: number,
+  verdict: "correct" | "retry",
+): LessonEvent | null {
+  if (role !== "teacher") return null;
+  return { t: Date.now(), type: "mark", index: itemIndex, verdict };
 }

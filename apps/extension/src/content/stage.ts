@@ -14,12 +14,20 @@ export interface StageRect {
  * raw viewport — so two people with different window shapes still
  * see the same relative arrangement. See docs/PRD.md, "The stage,
  * not the viewport."
+ *
+ * `leftInsetPx` reserves space on the left for the teacher panel
+ * (docs/PRD.md, "7. Teacher panel and activity runner": "never
+ * overlapping the stage"). On a very wide window the stage can
+ * otherwise reach the viewport's left edge, so this is computed into
+ * the geometry itself rather than hoping typical window shapes avoid
+ * the overlap.
  */
-export function computeStage(viewportW: number, viewportH: number): StageRect {
+export function computeStage(viewportW: number, viewportH: number, leftInsetPx = 0): StageRect {
   const bandTop = viewportH * (1 - STAGE_BAND_FRACTION);
   const bandHeight = viewportH * STAGE_BAND_FRACTION;
 
-  const availableW = Math.max(0, viewportW - 2 * STAGE_MARGIN_PX);
+  const regionW = Math.max(0, viewportW - leftInsetPx);
+  const availableW = Math.max(0, regionW - 2 * STAGE_MARGIN_PX);
   const availableH = Math.max(0, bandHeight - 2 * STAGE_MARGIN_PX);
 
   let w: number;
@@ -32,7 +40,7 @@ export function computeStage(viewportW: number, viewportH: number): StageRect {
     h = w / STAGE_ASPECT;
   }
 
-  const x = (viewportW - w) / 2;
+  const x = leftInsetPx + (regionW - w) / 2;
   const y = bandTop + (bandHeight - h) / 2;
 
   return { x, y, w, h };

@@ -1,0 +1,61 @@
+{
+  "id": "a2-prepositions-place",
+  "title": "A2 - Prepositions of place",
+  "translationLang": "cs",
+
+  "scenery": [
+    { "id": "table", "label": "table", "emoji": "🪑", "pos": { "x": 0.18, "y": 0.55 }, "size": { "w": 0.22, "h": 0.22 } },
+    { "id": "box", "label": "box", "emoji": "📦", "pos": { "x": 0.5, "y": 0.58 }, "size": { "w": 0.16, "h": 0.18 } },
+    { "id": "chair", "label": "chair", "emoji": "🪑", "pos": { "x": 0.76, "y": 0.55 }, "size": { "w": 0.16, "h": 0.22 } }
+  ],
+
+  "draggables": [
+    { "id": "keys", "label": "keys", "emoji": "🔑" },
+    { "id": "ball", "label": "ball", "emoji": "⚽" },
+    { "id": "cup", "label": "cup", "emoji": "☕" },
+    { "id": "apple", "label": "apple", "emoji": "🍎" },
+    { "id": "phone", "label": "phone", "emoji": "📱" },
+    { "id": "book", "label": "book", "emoji": "📕" }
+  ],
+
+  "zones": [
+    { "id": "on_table", "anchor": "table", "relation": "on", "offset": { "x": 0.0, "y": -0.1 } },
+    { "id": "under_table", "anchor": "table", "relation": "under", "offset": { "x": 0.0, "y": 0.14 } },
+    { "id": "in_box", "anchor": "box", "relation": "in", "offset": { "x": 0.0, "y": 0.02 } },
+    { "id": "on_box", "anchor": "box", "relation": "on", "offset": { "x": 0.0, "y": -0.1 } },
+    { "id": "behind_box", "anchor": "box", "relation": "behind", "offset": { "x": 0.06, "y": -0.06 } },
+    { "id": "next_to_chair", "anchor": "chair", "relation": "next to", "offset": { "x": -0.14, "y": 0.0 } },
+    { "id": "under_chair", "anchor": "chair", "relation": "under", "offset": { "x": 0.0, "y": 0.14 } },
+    { "id": "on_chair", "anchor": "chair", "relation": "on", "offset": { "x": 0.0, "y": -0.1 } },
+    { "id": "in_front_of_box", "anchor": "box", "relation": "in front of", "offset": { "x": 0.0, "y": 0.12 } },
+    { "id": "between_chair_table", "anchor": "both", "relation": "between", "offset": { "x": 0.0, "y": 0.0 } }
+  ],
+
+  "backdrops": {
+    "livingroom": { "src": "backdrops/livingroom.jpg", "fit": "cover", "dim": 0.25 }
+  },
+
+  "sentenceTemplate": "The {object} is {relation} the {anchor}.",
+
+  "cards": [
+    { "id": "c_keys", "word": "keys", "translation": "kliče", "emoji": "🔑" },
+    { "id": "c_ball", "word": "ball", "translation": "míč", "emoji": "⚽" },
+    { "id": "c_cup", "word": "cup", "translation": "šálek", "emoji": "☕" },
+    { "id": "c_apple", "word": "apple", "translation": "jablko", "emoji": "🍎" },
+    { "id": "c_phone", "word": "phone", "translation": "telefon", "emoji": "📱" },
+    { "id": "c_book", "word": "book", "translation": "kniha", "emoji": "📕" }
+  ],
+
+  "items": [
+    { "prompt": "Put the keys on the table.", "object": "keys", "zone": "on_table", "backdrop": "livingroom" },
+    { "prompt": "Put the ball under the table.", "object": "ball", "zone": "under_table" },
+    { "prompt": "Put the cup in the box.", "object": "cup", "zone": "in_box" },
+    { "prompt": "Put the apple on the box.", "object": "apple", "zone": "on_box" },
+    { "prompt": "Put the phone behind the box.", "object": "phone", "zone": "behind_box" },
+    { "prompt": "Put the book next to the chair.", "object": "book", "zone": "next_to_chair" },
+    { "prompt": "Put the keys under the chair.", "object": "keys", "zone": "under_chair" },
+    { "prompt": "Put the cup on the chair.", "object": "cup", "zone": "on_chair" },
+    { "prompt": "Put the apple in front of the box.", "object": "apple", "zone": "in_front_of_box" },
+    { "prompt": "Put the ball between the chair and the table.", "object": "ball", "zone": "between_chair_table" }
+  ]
+}

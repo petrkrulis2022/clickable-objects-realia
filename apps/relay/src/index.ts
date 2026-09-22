@@ -1,10 +1,22 @@
 import { WebSocketServer } from "ws";
 import type { ClientMessage, Role } from "@co/shared";
 import { appendEvent } from "./eventLog.js";
-import { applyDrop, applyMove, applyReveal, broadcast, joinRoom, leaveRoom, seedIfEmpty, type Room } from "./rooms.js";
-import { DEMO_OBJECTS } from "./seed.js";
+import {
+  applyDrop,
+  applyMark,
+  applyMove,
+  applyReveal,
+  applySetActivity,
+  broadcast,
+  joinRoom,
+  leaveRoom,
+  seedInitialItem,
+  type Room,
+} from "./rooms.js";
+import { loadPack, resolveItem } from "./packs.js";
 
 const PORT = 8787;
+const DEFAULT_PACK_ID = "a2-prepositions-place";
 const wss = new WebSocketServer({ port: PORT });
 
 wss.on("connection", (ws) => {
@@ -27,8 +39,11 @@ wss.on("connection", (ws) => {
       }
       session = { room: joined.room, role: joined.role, code: msg.code };
       if (joined.wasCreated) {
-        seedIfEmpty(joined.room, DEMO_OBJECTS);
         appendEvent(msg.code, { t: Date.now(), type: "session", phase: "start" });
+        const pack = loadPack(DEFAULT_PACK_ID);
+        const resolved = resolveItem(pack, 0);
+        seedInitialItem(joined.room, DEFAULT_PACK_ID, 0, resolved);
+        appendEvent(msg.code, { t: Date.now(), type: "item", index: 0, prompt: resolved.prompt });
       }
 
       ws.send(JSON.stringify({ type: "state", state: joined.room.state, yourRole: joined.role }));
@@ -50,8 +65,18 @@ wss.on("connection", (ws) => {
       case "reveal":
         appendEvent(session.code, applyReveal(session.room, session.role, msg.cardId, msg.stage));
         break;
-      // 'setActivity' and 'mark' arrive in "7. Teacher panel and
-      // activity runner". Ignored for now rather than half-implemented.
+      case "setActivity": {
+        const pack = loadPack(msg.packId);
+        const resolved = resolveItem(pack, msg.itemIndex);
+        const event = applySetActivity(session.room, session.role, msg.packId, msg.itemIndex, resolved);
+        if (event) appendEvent(session.code, event);
+        break;
+      }
+      case "mark": {
+        const event = applyMark(session.role, msg.itemIndex, msg.verdict);
+        if (event) appendEvent(session.code, event);
+        break;
+      }
       default:
         break;
     }
