@@ -7,7 +7,7 @@ import {
   SNAP_EASING,
   SNAP_MS,
 } from "./design";
-import { findAcceptingZone } from "./dropLogic";
+import { findNearestZone } from "./dropLogic";
 import type { OverlayHandle } from "./overlay";
 import { clampPos, stageToPagePx, type StageRect } from "./stage";
 
@@ -26,6 +26,8 @@ export interface DragControllerOptions {
 
 export interface DragController {
   setMyRole(role: Role): void;
+  /** A verdict for a drop this client made; the matching patch (right behind it) triggers the animation. */
+  onVerdict(id: string, zoneId: string, correct: boolean): void;
   /** Reconciles an incoming patch into the shared model, per the PRD's optimistic-local / reconcile-on-patch rule. */
   applyRemotePatch(changed: StageObject[], removed: string[]): void;
   destroy(): void;
@@ -42,16 +44,17 @@ function centerPx(stage: StageRect, obj: StageObject) {
 /**
  * Dragging is local-first (docs/PRD.md, "3. Dragging and drop zones,
  * local only") with networking layered on in "4. Relay and live
- * sync": every local move is sent to the relay (throttled to 30/s),
- * and incoming patches update objects the local pointer isn't
- * currently holding. The relay owns the soft lock; this controller
- * only avoids grabbing something the last-known state says the other
- * role already holds, and backs off gracefully if it loses a race.
+ * sync" and correctness moved server-side in "5. Server-side
+ * validation and the event log": this controller identifies the
+ * nearest zone by geometry alone and sends a drop intent, then
+ * animates from whatever verdict + patch the relay replies with — it
+ * never decides correct/incorrect itself.
  */
 export function attachDragController(opts: DragControllerOptions): DragController {
   const { overlay, objects, sentenceTemplate, zoneAnchorLabel, sendMove, sendDrop } = opts;
 
   let myRole: Role | null = null;
+  const pendingVerdicts = new Map<string, { zoneId: string; correct: boolean }>();
 
   function findObject(id: string): StageObject | undefined {
     return objects.find((o) => o.id === id);
@@ -64,7 +67,6 @@ export function attachDragController(opts: DragControllerOptions): DragControlle
   let draggingId: string | null = null;
   let draggingEl: HTMLElement | null = null;
   let draggingPointerId: number | null = null;
-  let dragStartPos: { x: number; y: number } | null = null;
   let lastClientX = 0;
   let lastClientY = 0;
   let lastMoveSentAt = 0;
@@ -97,7 +99,6 @@ export function attachDragController(opts: DragControllerOptions): DragControlle
     draggingId = id;
     draggingEl = el;
     draggingPointerId = e.pointerId;
-    dragStartPos = { ...obj.pos };
     lastClientX = e.clientX;
     lastClientY = e.clientY;
     lastMoveSentAt = 0;
@@ -148,15 +149,13 @@ export function attachDragController(opts: DragControllerOptions): DragControlle
   }
 
   function onPointerUp(e: PointerEvent) {
-    if (!draggingId || !dragStartPos) return;
+    if (!draggingId) return;
     const id = draggingId;
     const obj = findObject(id);
     const el = overlay.getObjectEl(id);
-    const startPos = dragStartPos;
     draggingId = null;
     draggingEl = null;
     draggingPointerId = null;
-    dragStartPos = null;
     if (!obj || !el) return;
 
     releaseDragHandlers(el);
@@ -165,53 +164,15 @@ export function attachDragController(opts: DragControllerOptions): DragControlle
       pendingRender = false;
     }
 
+    // Geometry only — which zone is nearest. Whether it's the RIGHT
+    // zone is for the relay to decide (msg 'verdict', handled below).
     const stage = overlay.getStage();
     const thresholdPx = DROP_THRESHOLD_STAGE_WIDTH_FRACTION * stage.w;
-    const zones = getZones();
-    const zoneCandidates = zones.map((z) => ({
-      id: z.id,
-      accepts: z.accepts,
-      centerPx: centerPx(stage, z),
-    }));
-    const targetZoneId = findAcceptingZone(id, centerPx(stage, obj), zoneCandidates, thresholdPx);
+    const zoneCandidates = getZones().map((z) => ({ id: z.id, centerPx: centerPx(stage, z) }));
+    const nearestZoneId = findNearestZone(centerPx(stage, obj), zoneCandidates, thresholdPx);
 
-    if (targetZoneId) {
-      const zone = zones.find((z) => z.id === targetZoneId)!;
-      const targetPos = clampPos(
-        { x: centerNorm(zone).x - obj.size.w / 2, y: centerNorm(zone).y - obj.size.h / 2 },
-        obj.size,
-      );
-      sendMove(id, targetPos);
-      sendDrop(id, targetZoneId);
-      animateMove(el, stage, obj.pos, targetPos, SNAP_MS, SNAP_EASING, () => {
-        obj.pos = targetPos;
-        obj.heldBy = null;
-        overlay.setObjects(objects);
-        pulse(el);
-        const sentence = sentenceTemplate
-          .replace("{object}", obj.label)
-          .replace("{relation}", zone.relation)
-          .replace("{anchor}", zoneAnchorLabel[zone.id] ?? zone.relation);
-        overlay.setSentence(sentence);
-      });
-    } else {
-      sendMove(id, startPos);
-      sendDrop(id, null);
-      animateMove(
-        el,
-        stage,
-        obj.pos,
-        startPos,
-        RETURN_MS,
-        "ease-out",
-        () => {
-          obj.pos = startPos;
-          obj.heldBy = null;
-          overlay.setObjects(objects);
-        },
-        true,
-      );
-    }
+    sendMove(id, obj.pos); // flush the final live position ahead of the drop intent
+    sendDrop(id, nearestZoneId);
   }
 
   /** Called when a patch reveals the other role won a simultaneous grab. */
@@ -233,7 +194,51 @@ export function attachDragController(opts: DragControllerOptions): DragControlle
     draggingId = null;
     draggingEl = null;
     draggingPointerId = null;
-    dragStartPos = null;
+  }
+
+  function onVerdict(id: string, zoneId: string, correct: boolean) {
+    pendingVerdicts.set(id, { zoneId, correct });
+  }
+
+  function animateVerdict(incoming: StageObject, verdict: { zoneId: string; correct: boolean }) {
+    const current = findObject(incoming.id);
+    const el = overlay.getObjectEl(incoming.id);
+    if (!current || !el) {
+      replaceObject(incoming);
+      return;
+    }
+    const stage = overlay.getStage();
+    const fromPos = { ...current.pos };
+
+    if (verdict.correct) {
+      animateMove(el, stage, fromPos, incoming.pos, SNAP_MS, SNAP_EASING, () => {
+        replaceObject(incoming);
+        overlay.setObjects(objects);
+        pulse(el);
+        const zone = getZones().find((z) => z.id === verdict.zoneId);
+        if (zone) {
+          const sentence = sentenceTemplate
+            .replace("{object}", incoming.label)
+            .replace("{relation}", zone.relation)
+            .replace("{anchor}", zoneAnchorLabel[zone.id] ?? zone.relation);
+          overlay.setSentence(sentence);
+        }
+      });
+    } else {
+      animateMove(
+        el,
+        stage,
+        fromPos,
+        incoming.pos,
+        RETURN_MS,
+        "ease-out",
+        () => {
+          replaceObject(incoming);
+          overlay.setObjects(objects);
+        },
+        true,
+      );
+    }
   }
 
   function applyRemotePatch(changed: StageObject[], removed: string[]) {
@@ -248,6 +253,14 @@ export function attachDragController(opts: DragControllerOptions): DragControlle
         }
         continue;
       }
+
+      const verdict = pendingVerdicts.get(incoming.id);
+      if (verdict) {
+        pendingVerdicts.delete(incoming.id);
+        animateVerdict(incoming, verdict);
+        continue;
+      }
+
       replaceObject(incoming);
     }
     for (const id of removed) {
@@ -269,6 +282,7 @@ export function attachDragController(opts: DragControllerOptions): DragControlle
     setMyRole: (role) => {
       myRole = role;
     },
+    onVerdict,
     applyRemotePatch,
     destroy: () => {
       overlay.objectsEl.removeEventListener("pointerdown", onPointerDown);

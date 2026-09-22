@@ -54,7 +54,8 @@ export function startSession(code: string): Session {
         );
         break;
       case "verdict":
-        break; // "5. Server-side validation and the event log"
+        drag.onVerdict(msg.id, msg.zoneId, msg.correct);
+        break;
     }
   }
 
