@@ -18,11 +18,40 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 const OUT_DIR = join(import.meta.dirname, "..", "..", "extension", "public", "audio");
-
-// Default voice: "Rachel", a stock ElevenLabs voice. Swap for whatever
-// voice the teacher's pack calls for.
-const VOICE_ID = process.env.ELEVENLABS_VOICE_ID ?? "21m00Tcm4TlvDq8ikWAM";
 const MODEL_ID = "eleven_turbo_v2_5";
+
+interface Voice {
+  voice_id: string;
+  name: string;
+}
+
+/**
+ * Free-tier accounts can't use ElevenLabs' shared "voice library" IDs
+ * via the API (402 paid_plan_required) — only voices already in the
+ * account. Rather than hardcode one that may not exist on every
+ * account/plan, ask the account what it actually has and use that
+ * (ELEVENLABS_VOICE_ID still overrides, if set).
+ */
+async function resolveVoiceId(apiKey: string): Promise<string> {
+  const explicit = process.env.ELEVENLABS_VOICE_ID;
+  if (explicit) return explicit;
+
+  const res = await fetch("https://api.elevenlabs.io/v1/voices", {
+    headers: { "xi-api-key": apiKey },
+  });
+  if (!res.ok) {
+    throw new Error(`Could not list voices: ${res.status} ${await res.text()}`);
+  }
+  const { voices } = (await res.json()) as { voices: Voice[] };
+  if (!voices.length) {
+    throw new Error(
+      "No voices available on this ElevenLabs account. Add one in the dashboard, " +
+        "or set ELEVENLABS_VOICE_ID to a voice_id your plan can use.",
+    );
+  }
+  console.log(`[generate-audio] using voice "${voices[0].name}" (${voices[0].voice_id})`);
+  return voices[0].voice_id;
+}
 
 interface Word {
   id: string;
@@ -39,8 +68,8 @@ const WORDS: Word[] = [
   { id: "book", word: "book" },
 ];
 
-async function synthesize(text: string, speed: number, apiKey: string): Promise<ArrayBuffer> {
-  const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`, {
+async function synthesize(text: string, speed: number, apiKey: string, voiceId: string): Promise<ArrayBuffer> {
+  const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
     method: "POST",
     headers: {
       "xi-api-key": apiKey,
@@ -69,13 +98,14 @@ async function main() {
     return;
   }
 
+  const voiceId = await resolveVoiceId(apiKey);
   await mkdir(OUT_DIR, { recursive: true });
 
   for (const { id, word } of WORDS) {
     console.log(`[generate-audio] ${word} ...`);
     const [normal, slow] = await Promise.all([
-      synthesize(word, 1.0, apiKey),
-      synthesize(word, 0.7, apiKey),
+      synthesize(word, 1.0, apiKey, voiceId),
+      synthesize(word, 0.7, apiKey, voiceId),
     ]);
     await writeFile(join(OUT_DIR, `${id}-normal.mp3`), Buffer.from(normal));
     await writeFile(join(OUT_DIR, `${id}-slow.mp3`), Buffer.from(slow));
