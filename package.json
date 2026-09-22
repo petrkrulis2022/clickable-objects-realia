@@ -1,0 +1,14 @@
+{
+  "name": "clickable-objects",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "pnpm --filter @co/shared build && pnpm --filter @co/extension build",
+    "dev:relay": "pnpm --filter @co/relay dev",
+    "build:relay": "pnpm --filter @co/relay build"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.2"
+  }
+}
