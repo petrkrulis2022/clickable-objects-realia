@@ -1,6 +1,9 @@
 import { WebSocketServer } from "ws";
 import type { ClientMessage, Role } from "@co/shared";
-import { appendEvent } from "./eventLog.js";
+import { appendEvent, readEvents } from "./eventLog.js";
+import { createReportServer, reportToken, writeReport } from "./httpServer.js";
+import { loadPack, resolveItem } from "./packs.js";
+import { buildSeed, renderReport } from "./report.js";
 import {
   applyDrop,
   applyMark,
@@ -13,11 +16,24 @@ import {
   seedInitialItem,
   type Room,
 } from "./rooms.js";
-import { loadPack, resolveItem } from "./packs.js";
 
 const PORT = 8787;
 const DEFAULT_PACK_ID = "a2-prepositions-place";
-const wss = new WebSocketServer({ port: PORT });
+
+const { server: httpServer, registerToken } = createReportServer();
+const wss = new WebSocketServer({ server: httpServer });
+
+function endSession(code: string) {
+  appendEvent(code, { t: Date.now(), type: "session", phase: "end" });
+  const events = readEvents(code);
+  const pack = loadPack(DEFAULT_PACK_ID);
+  const html = renderReport({ code, events, pack });
+  const seed = buildSeed({ code, events, pack });
+  writeReport(code, html, seed);
+  const token = reportToken();
+  registerToken(code, token);
+  console.log(`[relay] report ready: http://localhost:${PORT}/r/${code}/${token}`);
+}
 
 wss.on("connection", (ws) => {
   let session: { room: Room; role: Role; code: string } | null = null;
@@ -86,10 +102,10 @@ wss.on("connection", (ws) => {
     if (!session) return;
     broadcast(session.room, session.role, { type: "peer", role: session.role, connected: false });
     const sessionEnded = leaveRoom(session.room, session.role);
-    if (sessionEnded) {
-      appendEvent(session.code, { t: Date.now(), type: "session", phase: "end" });
-    }
+    if (sessionEnded) endSession(session.code);
   });
 });
 
-console.log(`[relay] listening on ws://localhost:${PORT}`);
+httpServer.listen(PORT, () => {
+  console.log(`[relay] listening on ws://localhost:${PORT} (reports served over the same port)`);
+});

@@ -14,6 +14,8 @@ export interface Room {
   dragStartPos: Map<string, Vec>;
   /** When the current activity item began; "5" has no item system yet, so this is the session start. */
   itemStartedAt: number;
+  /** Guards leaveRoom against firing "session end" twice — see its comment. */
+  ended: boolean;
 }
 
 const rooms = new Map<string, Room>();
@@ -41,6 +43,7 @@ export function joinRoom(
       lockTimers: new Map(),
       dragStartPos: new Map(),
       itemStartedAt: now,
+      ended: false,
     };
     rooms.set(code, room);
     wasCreated = true;
@@ -59,10 +62,19 @@ export function joinRoom(
   return { room, role, wasCreated };
 }
 
-/** Returns true if the room is now empty and was torn down (a "session end" moment). */
+/**
+ * Returns true if the room is now empty and was just torn down (a
+ * "session end" moment) — exactly once per room. Both connections'
+ * close handlers call this; readyState can already read CLOSED for
+ * the *other* side before its own close handler has run (the two
+ * close events race independently), so without the `ended` guard this
+ * would fire "session end" twice for one lesson.
+ */
 export function leaveRoom(room: Room, role: Role): boolean {
   if (room.connections[role]) delete room.connections[role];
+  if (room.ended) return false;
   if (!isOpen(room.connections.teacher) && !isOpen(room.connections.student)) {
+    room.ended = true;
     for (const t of room.lockTimers.values()) clearTimeout(t);
     rooms.delete(room.state.code);
     return true;
