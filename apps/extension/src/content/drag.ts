@@ -1,0 +1,223 @@
+import type { StageObject, Zone } from "@co/shared";
+import {
+  DROP_THRESHOLD_STAGE_WIDTH_FRACTION,
+  PULSE_MS,
+  RETURN_MS,
+  RETURN_SHAKE_PX,
+  SNAP_EASING,
+  SNAP_MS,
+} from "./design";
+import { findAcceptingZone } from "./dropLogic";
+import type { OverlayHandle } from "./overlay";
+import { clampPos, stageToPagePx, type StageRect } from "./stage";
+
+export interface DragControllerOptions {
+  overlay: OverlayHandle;
+  objects: StageObject[];
+  sentenceTemplate: string;
+  /** zone id -> the label of the thing it's anchored to, for sentence building */
+  zoneAnchorLabel: Record<string, string>;
+}
+
+function centerNorm(obj: StageObject) {
+  return { x: obj.pos.x + obj.size.w / 2, y: obj.pos.y + obj.size.h / 2 };
+}
+
+function centerPx(stage: StageRect, obj: StageObject) {
+  return stageToPagePx(stage, centerNorm(obj));
+}
+
+/**
+ * Local-only dragging (docs/PRD.md, "3. Dragging and drop zones, local
+ * only"): no networking. The relay takes over drop validation in
+ * "5. Server-side validation and the event log".
+ */
+export function attachDragController(opts: DragControllerOptions): () => void {
+  const { overlay, objects, sentenceTemplate, zoneAnchorLabel } = opts;
+  const zones = objects.filter((o): o is Zone => o.kind === "zone");
+
+  function findObject(id: string): StageObject | undefined {
+    return objects.find((o) => o.id === id);
+  }
+
+  let draggingId: string | null = null;
+  let dragStartPos: { x: number; y: number } | null = null;
+  let lastClientX = 0;
+  let lastClientY = 0;
+  let rafHandle = 0;
+  let pendingRender = false;
+
+  function scheduleRender() {
+    if (pendingRender) return;
+    pendingRender = true;
+    rafHandle = requestAnimationFrame(() => {
+      pendingRender = false;
+      overlay.setObjects(objects);
+    });
+  }
+
+  function onPointerDown(e: PointerEvent) {
+    const target = e.target as HTMLElement;
+    const el = target.closest('.co-object[data-kind="draggable"]') as HTMLElement | null;
+    if (!el) return;
+    const id = el.dataset.id;
+    if (!id) return;
+    const obj = findObject(id);
+    if (!obj) return;
+
+    e.preventDefault();
+    el.setPointerCapture(e.pointerId);
+
+    draggingId = id;
+    dragStartPos = { ...obj.pos };
+    lastClientX = e.clientX;
+    lastClientY = e.clientY;
+    el.classList.add("co-held");
+
+    const acceptingZoneIds = new Set(
+      zones.filter((z) => z.accepts.includes(id)).map((z) => z.id),
+    );
+    overlay.setZoneHighlight(acceptingZoneIds);
+    overlay.setSentence(null);
+
+    el.addEventListener("pointermove", onPointerMove);
+    el.addEventListener("pointerup", onPointerUp);
+    el.addEventListener("pointercancel", onPointerUp);
+  }
+
+  function onPointerMove(e: PointerEvent) {
+    if (!draggingId) return;
+    const obj = findObject(draggingId);
+    if (!obj) return;
+
+    const stage = overlay.getStage();
+    const dxPx = e.clientX - lastClientX;
+    const dyPx = e.clientY - lastClientY;
+    lastClientX = e.clientX;
+    lastClientY = e.clientY;
+
+    obj.pos = clampPos(
+      { x: obj.pos.x + dxPx / stage.w, y: obj.pos.y + dyPx / stage.h },
+      obj.size,
+    );
+    scheduleRender();
+  }
+
+  function endDrag(el: HTMLElement) {
+    el.removeEventListener("pointermove", onPointerMove);
+    el.removeEventListener("pointerup", onPointerUp);
+    el.removeEventListener("pointercancel", onPointerUp);
+    el.classList.remove("co-held");
+    overlay.setZoneHighlight(new Set());
+  }
+
+  function onPointerUp(e: PointerEvent) {
+    if (!draggingId || !dragStartPos) return;
+    const id = draggingId;
+    const obj = findObject(id);
+    const el = overlay.getObjectEl(id);
+    const startPos = dragStartPos;
+    draggingId = null;
+    dragStartPos = null;
+    if (!obj || !el) return;
+
+    endDrag(el);
+    if (pendingRender) {
+      cancelAnimationFrame(rafHandle);
+      pendingRender = false;
+    }
+
+    const stage = overlay.getStage();
+    const thresholdPx = DROP_THRESHOLD_STAGE_WIDTH_FRACTION * stage.w;
+    const zoneCandidates = zones.map((z) => ({
+      id: z.id,
+      accepts: z.accepts,
+      centerPx: centerPx(stage, z),
+    }));
+    const targetZoneId = findAcceptingZone(id, centerPx(stage, obj), zoneCandidates, thresholdPx);
+
+    if (targetZoneId) {
+      const zone = zones.find((z) => z.id === targetZoneId)!;
+      const targetPos = clampPos(
+        { x: centerNorm(zone).x - obj.size.w / 2, y: centerNorm(zone).y - obj.size.h / 2 },
+        obj.size,
+      );
+      animateMove(el, stage, obj, obj.pos, targetPos, SNAP_MS, SNAP_EASING, () => {
+        obj.pos = targetPos;
+        overlay.setObjects(objects);
+        pulse(el);
+        const sentence = sentenceTemplate
+          .replace("{object}", obj.label)
+          .replace("{relation}", zone.relation)
+          .replace("{anchor}", zoneAnchorLabel[zone.id] ?? zone.relation);
+        overlay.setSentence(sentence);
+      });
+    } else {
+      animateMove(el, stage, obj, obj.pos, startPos, RETURN_MS, "ease-out", () => {
+        obj.pos = startPos;
+        overlay.setObjects(objects);
+      }, true);
+    }
+  }
+
+  overlay.objectsEl.addEventListener("pointerdown", onPointerDown);
+
+  return () => {
+    overlay.objectsEl.removeEventListener("pointerdown", onPointerDown);
+  };
+}
+
+/**
+ * Animates an object's visual position from `from` to `to` (both
+ * normalised stage coordinates) using a transform, independent of the
+ * left/top layout, then commits the model position via `onDone`. Set
+ * `shake` for the wrong-drop return, per the PRD's "6px horizontal
+ * shake."
+ */
+function animateMove(
+  el: HTMLElement,
+  stage: StageRect,
+  obj: StageObject,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  durationMs: number,
+  easing: string,
+  onDone: () => void,
+  shake = false,
+) {
+  const fromPx = stageToPagePx(stage, from);
+  const toPx = stageToPagePx(stage, to);
+  const dx = toPx.x - fromPx.x;
+  const dy = toPx.y - fromPx.y;
+
+  const frames: Keyframe[] = shake
+    ? [
+        { transform: "translate(0px, 0px)", offset: 0 },
+        { transform: `translate(${dx * 0.6 + RETURN_SHAKE_PX}px, ${dy * 0.6}px)`, offset: 0.25 },
+        { transform: `translate(${dx * 0.3 - RETURN_SHAKE_PX}px, ${dy * 0.3}px)`, offset: 0.5 },
+        { transform: `translate(${dx * 0.1 + RETURN_SHAKE_PX * 0.5}px, ${dy * 0.1}px)`, offset: 0.75 },
+        { transform: "translate(0px, 0px)", offset: 1 },
+      ]
+    : [{ transform: "translate(0px, 0px)" }, { transform: `translate(${dx}px, ${dy}px)` }];
+
+  const animation = el.animate(frames, { duration: durationMs, easing, fill: "forwards" });
+  animation.finished
+    .catch(() => {
+      /* animation was cancelled, e.g. a new drag started mid-return */
+    })
+    .finally(() => {
+      el.getAnimations().forEach((a) => a.cancel());
+      onDone();
+    });
+}
+
+function pulse(el: HTMLElement) {
+  el.animate(
+    [
+      { transform: "scale(1)" },
+      { transform: "scale(1.12)" },
+      { transform: "scale(1)" },
+    ],
+    { duration: PULSE_MS, easing: "ease-out" },
+  );
+}

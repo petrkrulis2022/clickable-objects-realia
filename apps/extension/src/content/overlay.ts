@@ -1,7 +1,10 @@
 import type { Backdrop, StageObject } from "@co/shared";
 import {
   BACKDROP_CROSSFADE_MS,
+  DROP_ZONE_BORDER,
   EMOJI_FONT_SIZE_PX,
+  HELD_SCALE,
+  HELD_SHADOW,
   OBJECT_BORDER,
   OBJECT_LABEL_COLOR,
   OBJECT_LABEL_FONT_SIZE_PX,
@@ -11,6 +14,8 @@ import {
   OBJECT_SHADOW,
   SCRIM_COLOR,
   SCRIM_FEATHER_PX,
+  SENTENCE_FONT_SIZE_PX,
+  SENTENCE_GAP_PX,
   SYSTEM_FONT_STACK,
   Z_INDEX_MAX,
 } from "./design";
@@ -80,6 +85,34 @@ const CSS = `
     font-weight: ${OBJECT_LABEL_WEIGHT};
     color: ${OBJECT_LABEL_COLOR};
   }
+  .co-object[data-kind="draggable"] { cursor: grab; }
+  .co-object.co-held {
+    cursor: grabbing;
+    transform: scale(${HELD_SCALE});
+    box-shadow: ${HELD_SHADOW};
+    z-index: 9999;
+  }
+  .co-object[data-kind="zone"] {
+    background: transparent;
+    border: ${DROP_ZONE_BORDER};
+    box-shadow: none;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms linear;
+  }
+  .co-object[data-kind="zone"].co-zone-visible { opacity: 1; }
+  .co-sentence {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    margin-top: ${SENTENCE_GAP_PX}px;
+    text-align: center;
+    font-size: ${SENTENCE_FONT_SIZE_PX}px;
+    color: #fff;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+    pointer-events: none;
+  }
 `;
 
 export interface OverlayHandle {
@@ -90,6 +123,8 @@ export interface OverlayHandle {
   setBackdrop(backdrop: Backdrop | null): void;
   setObjects(objects: StageObject[]): void;
   getObjectEl(id: string): HTMLElement | undefined;
+  setZoneHighlight(zoneIds: ReadonlySet<string>): void;
+  setSentence(text: string | null): void;
   onResize(cb: (stage: StageRect) => void): void;
   destroy(): void;
 }
@@ -134,6 +169,10 @@ export function mountOverlay(): OverlayHandle {
   objectsEl.className = "co-objects";
   stageEl.appendChild(objectsEl);
 
+  const sentenceEl = document.createElement("div");
+  sentenceEl.className = "co-sentence";
+  stageEl.appendChild(sentenceEl);
+
   document.body.appendChild(host);
 
   let stage = computeStage(window.innerWidth, window.innerHeight);
@@ -166,6 +205,9 @@ export function mountOverlay(): OverlayHandle {
     const el = document.createElement("div");
     el.className = "co-object";
     el.dataset.id = obj.id;
+    el.dataset.kind = obj.kind;
+
+    if (obj.kind === "zone") return el;
 
     if (obj.emoji) {
       const emoji = document.createElement("span");
@@ -243,6 +285,17 @@ export function mountOverlay(): OverlayHandle {
   layoutStage();
   window.addEventListener("resize", handleResize);
 
+  function setZoneHighlight(zoneIds: ReadonlySet<string>) {
+    for (const [id, el] of objectEls) {
+      if (el.dataset.kind !== "zone") continue;
+      el.classList.toggle("co-zone-visible", zoneIds.has(id));
+    }
+  }
+
+  function setSentence(text: string | null) {
+    sentenceEl.textContent = text ?? "";
+  }
+
   return {
     root,
     stageEl,
@@ -251,6 +304,8 @@ export function mountOverlay(): OverlayHandle {
     setBackdrop,
     setObjects,
     getObjectEl: (id) => objectEls.get(id),
+    setZoneHighlight,
+    setSentence,
     onResize: (cb) => resizeCbs.push(cb),
     destroy: () => {
       window.removeEventListener("resize", handleResize);
