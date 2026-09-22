@@ -164,6 +164,26 @@ export function applyDrop(
   };
 }
 
+/**
+ * A reveal is logged but never enters synced RoomState (docs/PRD.md,
+ * "6. Reveal cards": "the state is per viewer and must never enter
+ * synced room state"). The teacher still needs to see live progress,
+ * so a student's reveal is forwarded to the teacher alone via
+ * 'revealProgress' — outside the patch/rev system entirely. Returns
+ * the LessonEvent for the caller to log.
+ */
+export function applyReveal(
+  room: Room,
+  role: Role,
+  cardId: string,
+  stage: 1 | 2 | 3,
+): LessonEvent {
+  if (role === "student") {
+    send(room.connections.teacher, { type: "revealProgress", cardId, stage, role });
+  }
+  return { t: Date.now(), type: "reveal", cardId, stage, role };
+}
+
 /** Seeds a freshly created room's objects (demo scene / a pack, later). Ignored if the room already has objects. */
 export function seedIfEmpty(room: Room, objects: StageObject[]) {
   if (Object.keys(room.state.objects).length > 0) return;

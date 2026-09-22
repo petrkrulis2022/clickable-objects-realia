@@ -1,11 +1,11 @@
-import type { StageObject, Zone } from "@co/shared";
+import type { Card, StageObject, Zone } from "@co/shared";
 
 // Demo scene seeded into every freshly created room, until
 // "7. Teacher panel and activity runner" replaces this with real
 // packs loaded from JSON. Mirrors what apps/extension used to
 // hardcode locally in "2. Overlay and stage" / "3. Dragging and drop
 // zones, local only" — now the relay is the single source of truth.
-export const DEMO_OBJECTS: Array<StageObject | Zone> = [
+export const DEMO_OBJECTS: Array<StageObject | Zone | Card> = [
   {
     id: "table",
     kind: "label",
@@ -82,6 +82,34 @@ export const DEMO_OBJECTS: Array<StageObject | Zone> = [
     pos: { x: 0.2, y: 0.84 },
     size: { w: 0.09, h: 0.11 },
     z: 2,
+    draggableBy: "both",
+    visibleTo: "both",
+  },
+  {
+    id: "c_keys",
+    kind: "card",
+    label: "keys",
+    word: "keys",
+    translation: "kliče",
+    emoji: "🔑",
+    audio: { normal: "audio/keys-normal.mp3", slow: "audio/keys-slow.mp3" },
+    pos: { x: 0.04, y: 0.03 },
+    size: { w: 0.14, h: 0.14 },
+    z: 3,
+    draggableBy: "both",
+    visibleTo: "both",
+  },
+  {
+    id: "c_cup",
+    kind: "card",
+    label: "cup",
+    word: "cup",
+    translation: "šálek",
+    emoji: "☕",
+    audio: { normal: "audio/cup-normal.mp3", slow: "audio/cup-slow.mp3" },
+    pos: { x: 0.2, y: 0.03 },
+    size: { w: 0.14, h: 0.14 },
+    z: 3,
     draggableBy: "both",
     visibleTo: "both",
   },

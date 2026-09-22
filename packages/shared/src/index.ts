@@ -70,7 +70,13 @@ export type ServerMessage =
       backdrop?: Backdrop | null;
     }
   | { type: "verdict"; id: string; zoneId: string; correct: boolean }
-  | { type: "peer"; role: Role; connected: boolean };
+  | { type: "peer"; role: Role; connected: boolean }
+  // Not in the PRD's protocol table. Added in "6. Reveal cards" so the
+  // teacher's dots can update live: a student's 'reveal' is logged
+  // (see LessonEvent below) but, per the PRD, never enters synced
+  // RoomState — this is a lightweight, teacher-only notification of it,
+  // outside the rev/patch reconciliation system entirely.
+  | { type: "revealProgress"; cardId: string; stage: 1 | 2 | 3; role: Role };
 
 // The event log is appended on the relay, never on the client, so a
 // refresh cannot lose a lesson.

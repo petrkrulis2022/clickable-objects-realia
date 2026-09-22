@@ -14,5 +14,11 @@
       "js": ["content.js"],
       "run_at": "document_idle"
     }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["audio/*"],
+      "matches": ["https://meet.google.com/*"]
+    }
   ]
 }

@@ -1,4 +1,5 @@
 import type { ServerMessage, StageObject } from "@co/shared";
+import { attachCardsController } from "./cards";
 import { attachDragController } from "./drag";
 import { mountOverlay } from "./overlay";
 import { connect } from "./ws";
@@ -32,6 +33,12 @@ export function startSession(code: string): Session {
     sendDrop: (id, zoneId) => client.send({ type: "drop", id, zoneId }),
   });
 
+  const cards = attachCardsController({
+    overlay,
+    objects,
+    sendReveal: (cardId, stage) => client.send({ type: "reveal", cardId, stage }),
+  });
+
   function onMessage(msg: ServerMessage) {
     switch (msg.type) {
       case "state":
@@ -56,6 +63,9 @@ export function startSession(code: string): Session {
       case "verdict":
         drag.onVerdict(msg.id, msg.zoneId, msg.correct);
         break;
+      case "revealProgress":
+        overlay.setCardPeerProgress(msg.cardId, msg.stage);
+        break;
     }
   }
 
@@ -64,6 +74,7 @@ export function startSession(code: string): Session {
   return {
     destroy: () => {
       client.destroy();
+      cards.destroy();
       drag.destroy();
       overlay.destroy();
     },

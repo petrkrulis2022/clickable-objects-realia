@@ -1,4 +1,4 @@
-import type { Backdrop, StageObject } from "@co/shared";
+import type { Backdrop, Card, StageObject } from "@co/shared";
 import {
   BACKDROP_CROSSFADE_MS,
   DROP_ZONE_BORDER,
@@ -101,6 +101,35 @@ const CSS = `
     transition: opacity 120ms linear;
   }
   .co-object[data-kind="zone"].co-zone-visible { opacity: 1; }
+  .co-object[data-kind="card"] { cursor: pointer; gap: 4px; }
+  .co-object[data-kind="card"] .co-card-audio-dot,
+  .co-object[data-kind="card"] .co-card-emoji,
+  .co-object[data-kind="card"] .co-card-translation {
+    display: none;
+  }
+  .co-object[data-kind="card"].co-reveal-1 .co-card-audio-dot { display: inline-block; font-size: 16px; }
+  .co-object[data-kind="card"].co-reveal-2 .co-card-emoji { display: inline-block; font-size: 28px; }
+  .co-object[data-kind="card"].co-reveal-3 .co-card-translation {
+    display: inline-block;
+    font-size: 13px;
+    color: #555;
+  }
+  .co-card-dots {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -14px;
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+  }
+  .co-card-dots .co-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+  }
+  .co-card-dots .co-dot.co-dot-filled { background: #fff; }
   .co-sentence {
     position: absolute;
     left: 0;
@@ -125,6 +154,9 @@ export interface OverlayHandle {
   getObjectEl(id: string): HTMLElement | undefined;
   setZoneHighlight(zoneIds: ReadonlySet<string>): void;
   setSentence(text: string | null): void;
+  setCardReveal(cardId: string, stage: 0 | 1 | 2 | 3): void;
+  /** Teacher-only: how far the student has revealed this card. */
+  setCardPeerProgress(cardId: string, stage: 0 | 1 | 2 | 3): void;
   onResize(cb: (stage: StageRect) => void): void;
   destroy(): void;
 }
@@ -208,6 +240,40 @@ export function mountOverlay(): OverlayHandle {
     el.dataset.kind = obj.kind;
 
     if (obj.kind === "zone") return el;
+
+    if (obj.kind === "card") {
+      const card = obj as Card;
+      const word = document.createElement("span");
+      word.className = "co-card-word co-label";
+      word.textContent = card.word;
+      el.appendChild(word);
+
+      const audioDot = document.createElement("span");
+      audioDot.className = "co-card-audio-dot";
+      audioDot.textContent = "🔊";
+      el.appendChild(audioDot);
+
+      const emoji = document.createElement("span");
+      emoji.className = "co-card-emoji";
+      emoji.textContent = card.emoji ?? "";
+      el.appendChild(emoji);
+
+      const translation = document.createElement("span");
+      translation.className = "co-card-translation";
+      translation.textContent = card.translation;
+      el.appendChild(translation);
+
+      const dots = document.createElement("div");
+      dots.className = "co-card-dots";
+      for (let i = 0; i < 3; i++) {
+        const dot = document.createElement("span");
+        dot.className = "co-dot";
+        dots.appendChild(dot);
+      }
+      el.appendChild(dots);
+
+      return el;
+    }
 
     if (obj.emoji) {
       const emoji = document.createElement("span");
@@ -296,6 +362,21 @@ export function mountOverlay(): OverlayHandle {
     sentenceEl.textContent = text ?? "";
   }
 
+  function setCardReveal(cardId: string, stage: 0 | 1 | 2 | 3) {
+    const el = objectEls.get(cardId);
+    if (!el) return;
+    el.classList.toggle("co-reveal-1", stage >= 1);
+    el.classList.toggle("co-reveal-2", stage >= 2);
+    el.classList.toggle("co-reveal-3", stage >= 3);
+  }
+
+  function setCardPeerProgress(cardId: string, stage: 0 | 1 | 2 | 3) {
+    const el = objectEls.get(cardId);
+    if (!el) return;
+    const dots = el.querySelectorAll(".co-card-dots .co-dot");
+    dots.forEach((dot, i) => dot.classList.toggle("co-dot-filled", i < stage));
+  }
+
   return {
     root,
     stageEl,
@@ -306,6 +387,8 @@ export function mountOverlay(): OverlayHandle {
     getObjectEl: (id) => objectEls.get(id),
     setZoneHighlight,
     setSentence,
+    setCardReveal,
+    setCardPeerProgress,
     onResize: (cb) => resizeCbs.push(cb),
     destroy: () => {
       window.removeEventListener("resize", handleResize);

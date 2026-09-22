@@ -1,7 +1,7 @@
 import { WebSocketServer } from "ws";
 import type { ClientMessage, Role } from "@co/shared";
 import { appendEvent } from "./eventLog.js";
-import { applyDrop, applyMove, broadcast, joinRoom, leaveRoom, seedIfEmpty, type Room } from "./rooms.js";
+import { applyDrop, applyMove, applyReveal, broadcast, joinRoom, leaveRoom, seedIfEmpty, type Room } from "./rooms.js";
 import { DEMO_OBJECTS } from "./seed.js";
 
 const PORT = 8787;
@@ -47,8 +47,11 @@ wss.on("connection", (ws) => {
         if (event) appendEvent(session.code, event);
         break;
       }
-      // 'reveal', 'setActivity' and 'mark' arrive in later prompts
-      // (6 and 7). Ignored for now rather than half-implemented.
+      case "reveal":
+        appendEvent(session.code, applyReveal(session.room, session.role, msg.cardId, msg.stage));
+        break;
+      // 'setActivity' and 'mark' arrive in "7. Teacher panel and
+      // activity runner". Ignored for now rather than half-implemented.
       default:
         break;
     }
