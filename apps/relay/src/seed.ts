@@ -1,0 +1,88 @@
+import type { StageObject, Zone } from "@co/shared";
+
+// Demo scene seeded into every freshly created room, until
+// "7. Teacher panel and activity runner" replaces this with real
+// packs loaded from JSON. Mirrors what apps/extension used to
+// hardcode locally in "2. Overlay and stage" / "3. Dragging and drop
+// zones, local only" — now the relay is the single source of truth.
+export const DEMO_OBJECTS: Array<StageObject | Zone> = [
+  {
+    id: "table",
+    kind: "label",
+    label: "table",
+    emoji: "🪑",
+    pos: { x: 0.18, y: 0.55 },
+    size: { w: 0.22, h: 0.22 },
+    z: 1,
+    draggableBy: "both",
+    visibleTo: "both",
+  },
+  {
+    id: "box",
+    kind: "label",
+    label: "box",
+    emoji: "📦",
+    pos: { x: 0.5, y: 0.58 },
+    size: { w: 0.16, h: 0.18 },
+    z: 1,
+    draggableBy: "both",
+    visibleTo: "both",
+  },
+  {
+    id: "chair",
+    kind: "label",
+    label: "chair",
+    emoji: "🪑",
+    pos: { x: 0.76, y: 0.55 },
+    size: { w: 0.16, h: 0.22 },
+    z: 1,
+    draggableBy: "both",
+    visibleTo: "both",
+  },
+  {
+    id: "on_table",
+    kind: "zone",
+    label: "on_table",
+    pos: { x: 0.16, y: 0.46 },
+    size: { w: 0.26, h: 0.1 },
+    z: 0,
+    draggableBy: "both",
+    visibleTo: "both",
+    accepts: ["keys"],
+    relation: "on",
+  },
+  {
+    id: "in_box",
+    kind: "zone",
+    label: "in_box",
+    pos: { x: 0.46, y: 0.5 },
+    size: { w: 0.2, h: 0.12 },
+    z: 0,
+    draggableBy: "both",
+    visibleTo: "both",
+    accepts: ["cup"],
+    relation: "in",
+  },
+  {
+    id: "keys",
+    kind: "draggable",
+    label: "keys",
+    emoji: "🔑",
+    pos: { x: 0.06, y: 0.84 },
+    size: { w: 0.09, h: 0.11 },
+    z: 2,
+    draggableBy: "both",
+    visibleTo: "both",
+  },
+  {
+    id: "cup",
+    kind: "draggable",
+    label: "cup",
+    emoji: "☕",
+    pos: { x: 0.2, y: 0.84 },
+    size: { w: 0.09, h: 0.11 },
+    z: 2,
+    draggableBy: "both",
+    visibleTo: "both",
+  },
+];

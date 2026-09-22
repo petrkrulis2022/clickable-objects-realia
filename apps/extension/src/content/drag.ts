@@ -1,4 +1,4 @@
-import type { StageObject, Zone } from "@co/shared";
+import type { Role, StageObject, Vec, Zone } from "@co/shared";
 import {
   DROP_THRESHOLD_STAGE_WIDTH_FRACTION,
   PULSE_MS,
@@ -11,12 +11,24 @@ import { findAcceptingZone } from "./dropLogic";
 import type { OverlayHandle } from "./overlay";
 import { clampPos, stageToPagePx, type StageRect } from "./stage";
 
+const MOVE_SEND_MIN_INTERVAL_MS = 1000 / 30; // "never more than thirty a second"
+
 export interface DragControllerOptions {
   overlay: OverlayHandle;
+  /** Mutable model, shared with whatever applies incoming server patches. */
   objects: StageObject[];
   sentenceTemplate: string;
   /** zone id -> the label of the thing it's anchored to, for sentence building */
   zoneAnchorLabel: Record<string, string>;
+  sendMove: (id: string, pos: Vec) => void;
+  sendDrop: (id: string, zoneId: string | null) => void;
+}
+
+export interface DragController {
+  setMyRole(role: Role): void;
+  /** Reconciles an incoming patch into the shared model, per the PRD's optimistic-local / reconcile-on-patch rule. */
+  applyRemotePatch(changed: StageObject[], removed: string[]): void;
+  destroy(): void;
 }
 
 function centerNorm(obj: StageObject) {
@@ -28,22 +40,34 @@ function centerPx(stage: StageRect, obj: StageObject) {
 }
 
 /**
- * Local-only dragging (docs/PRD.md, "3. Dragging and drop zones, local
- * only"): no networking. The relay takes over drop validation in
- * "5. Server-side validation and the event log".
+ * Dragging is local-first (docs/PRD.md, "3. Dragging and drop zones,
+ * local only") with networking layered on in "4. Relay and live
+ * sync": every local move is sent to the relay (throttled to 30/s),
+ * and incoming patches update objects the local pointer isn't
+ * currently holding. The relay owns the soft lock; this controller
+ * only avoids grabbing something the last-known state says the other
+ * role already holds, and backs off gracefully if it loses a race.
  */
-export function attachDragController(opts: DragControllerOptions): () => void {
-  const { overlay, objects, sentenceTemplate, zoneAnchorLabel } = opts;
-  const zones = objects.filter((o): o is Zone => o.kind === "zone");
+export function attachDragController(opts: DragControllerOptions): DragController {
+  const { overlay, objects, sentenceTemplate, zoneAnchorLabel, sendMove, sendDrop } = opts;
+
+  let myRole: Role | null = null;
 
   function findObject(id: string): StageObject | undefined {
     return objects.find((o) => o.id === id);
   }
 
+  function getZones(): Zone[] {
+    return objects.filter((o): o is Zone => o.kind === "zone");
+  }
+
   let draggingId: string | null = null;
+  let draggingEl: HTMLElement | null = null;
+  let draggingPointerId: number | null = null;
   let dragStartPos: { x: number; y: number } | null = null;
   let lastClientX = 0;
   let lastClientY = 0;
+  let lastMoveSentAt = 0;
   let rafHandle = 0;
   let pendingRender = false;
 
@@ -57,6 +81,7 @@ export function attachDragController(opts: DragControllerOptions): () => void {
   }
 
   function onPointerDown(e: PointerEvent) {
+    if (!myRole) return; // not connected/joined yet
     const target = e.target as HTMLElement;
     const el = target.closest('.co-object[data-kind="draggable"]') as HTMLElement | null;
     if (!el) return;
@@ -64,18 +89,22 @@ export function attachDragController(opts: DragControllerOptions): () => void {
     if (!id) return;
     const obj = findObject(id);
     if (!obj) return;
+    if (obj.heldBy && obj.heldBy !== myRole) return; // the other role already has it
 
     e.preventDefault();
     el.setPointerCapture(e.pointerId);
 
     draggingId = id;
+    draggingEl = el;
+    draggingPointerId = e.pointerId;
     dragStartPos = { ...obj.pos };
     lastClientX = e.clientX;
     lastClientY = e.clientY;
+    lastMoveSentAt = 0;
     el.classList.add("co-held");
 
     const acceptingZoneIds = new Set(
-      zones.filter((z) => z.accepts.includes(id)).map((z) => z.id),
+      getZones().filter((z) => z.accepts.includes(id)).map((z) => z.id),
     );
     overlay.setZoneHighlight(acceptingZoneIds);
     overlay.setSentence(null);
@@ -100,10 +129,17 @@ export function attachDragController(opts: DragControllerOptions): () => void {
       { x: obj.pos.x + dxPx / stage.w, y: obj.pos.y + dyPx / stage.h },
       obj.size,
     );
+    obj.heldBy = myRole;
     scheduleRender();
+
+    const now = performance.now();
+    if (now - lastMoveSentAt >= MOVE_SEND_MIN_INTERVAL_MS) {
+      lastMoveSentAt = now;
+      sendMove(obj.id, obj.pos);
+    }
   }
 
-  function endDrag(el: HTMLElement) {
+  function releaseDragHandlers(el: HTMLElement) {
     el.removeEventListener("pointermove", onPointerMove);
     el.removeEventListener("pointerup", onPointerUp);
     el.removeEventListener("pointercancel", onPointerUp);
@@ -118,10 +154,12 @@ export function attachDragController(opts: DragControllerOptions): () => void {
     const el = overlay.getObjectEl(id);
     const startPos = dragStartPos;
     draggingId = null;
+    draggingEl = null;
+    draggingPointerId = null;
     dragStartPos = null;
     if (!obj || !el) return;
 
-    endDrag(el);
+    releaseDragHandlers(el);
     if (pendingRender) {
       cancelAnimationFrame(rafHandle);
       pendingRender = false;
@@ -129,6 +167,7 @@ export function attachDragController(opts: DragControllerOptions): () => void {
 
     const stage = overlay.getStage();
     const thresholdPx = DROP_THRESHOLD_STAGE_WIDTH_FRACTION * stage.w;
+    const zones = getZones();
     const zoneCandidates = zones.map((z) => ({
       id: z.id,
       accepts: z.accepts,
@@ -142,8 +181,11 @@ export function attachDragController(opts: DragControllerOptions): () => void {
         { x: centerNorm(zone).x - obj.size.w / 2, y: centerNorm(zone).y - obj.size.h / 2 },
         obj.size,
       );
-      animateMove(el, stage, obj, obj.pos, targetPos, SNAP_MS, SNAP_EASING, () => {
+      sendMove(id, targetPos);
+      sendDrop(id, targetZoneId);
+      animateMove(el, stage, obj.pos, targetPos, SNAP_MS, SNAP_EASING, () => {
         obj.pos = targetPos;
+        obj.heldBy = null;
         overlay.setObjects(objects);
         pulse(el);
         const sentence = sentenceTemplate
@@ -153,31 +195,97 @@ export function attachDragController(opts: DragControllerOptions): () => void {
         overlay.setSentence(sentence);
       });
     } else {
-      animateMove(el, stage, obj, obj.pos, startPos, RETURN_MS, "ease-out", () => {
-        obj.pos = startPos;
-        overlay.setObjects(objects);
-      }, true);
+      sendMove(id, startPos);
+      sendDrop(id, null);
+      animateMove(
+        el,
+        stage,
+        obj.pos,
+        startPos,
+        RETURN_MS,
+        "ease-out",
+        () => {
+          obj.pos = startPos;
+          obj.heldBy = null;
+          overlay.setObjects(objects);
+        },
+        true,
+      );
     }
+  }
+
+  /** Called when a patch reveals the other role won a simultaneous grab. */
+  function abortLocalDrag() {
+    if (!draggingId || !draggingEl) return;
+    const el = draggingEl;
+    if (draggingPointerId !== null) {
+      try {
+        el.releasePointerCapture(draggingPointerId);
+      } catch {
+        /* already released */
+      }
+    }
+    releaseDragHandlers(el);
+    if (pendingRender) {
+      cancelAnimationFrame(rafHandle);
+      pendingRender = false;
+    }
+    draggingId = null;
+    draggingEl = null;
+    draggingPointerId = null;
+    dragStartPos = null;
+  }
+
+  function applyRemotePatch(changed: StageObject[], removed: string[]) {
+    for (const incoming of changed) {
+      if (draggingId === incoming.id) {
+        // I'm actively dragging this — my optimistic local state wins,
+        // UNLESS the relay says someone else now holds it (I lost a
+        // race), in which case back off immediately rather than fight.
+        if (incoming.heldBy && incoming.heldBy !== myRole) {
+          abortLocalDrag();
+          replaceObject(incoming);
+        }
+        continue;
+      }
+      replaceObject(incoming);
+    }
+    for (const id of removed) {
+      const idx = objects.findIndex((o) => o.id === id);
+      if (idx >= 0) objects.splice(idx, 1);
+    }
+    overlay.setObjects(objects);
+  }
+
+  function replaceObject(incoming: StageObject) {
+    const idx = objects.findIndex((o) => o.id === incoming.id);
+    if (idx >= 0) objects[idx] = incoming;
+    else objects.push(incoming);
   }
 
   overlay.objectsEl.addEventListener("pointerdown", onPointerDown);
 
-  return () => {
-    overlay.objectsEl.removeEventListener("pointerdown", onPointerDown);
+  return {
+    setMyRole: (role) => {
+      myRole = role;
+    },
+    applyRemotePatch,
+    destroy: () => {
+      overlay.objectsEl.removeEventListener("pointerdown", onPointerDown);
+    },
   };
 }
 
 /**
- * Animates an object's visual position from `from` to `to` (both
- * normalised stage coordinates) using a transform, independent of the
- * left/top layout, then commits the model position via `onDone`. Set
- * `shake` for the wrong-drop return, per the PRD's "6px horizontal
- * shake."
+ * Animates an object's visual position from its current model position
+ * to `to` (normalised stage coordinates) using a transform, independent
+ * of the left/top layout, then commits the model position via
+ * `onDone`. Set `shake` for the wrong-drop return, per the PRD's "6px
+ * horizontal shake."
  */
 function animateMove(
   el: HTMLElement,
   stage: StageRect,
-  obj: StageObject,
   from: { x: number; y: number },
   to: { x: number; y: number },
   durationMs: number,
@@ -213,11 +321,7 @@ function animateMove(
 
 function pulse(el: HTMLElement) {
   el.animate(
-    [
-      { transform: "scale(1)" },
-      { transform: "scale(1.12)" },
-      { transform: "scale(1)" },
-    ],
+    [{ transform: "scale(1)" }, { transform: "scale(1.12)" }, { transform: "scale(1)" }],
     { duration: PULSE_MS, easing: "ease-out" },
   );
 }

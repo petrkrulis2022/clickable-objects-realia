@@ -16,18 +16,71 @@
       }
       h1 {
         font-size: 14px;
-        margin: 0 0 8px;
+        margin: 0 0 12px;
+      }
+      .code {
+        font-size: 28px;
+        font-weight: 700;
+        letter-spacing: 4px;
+        text-align: center;
+        padding: 12px 0;
+        background: #232326;
+        border-radius: 8px;
+        margin-bottom: 12px;
+      }
+      button {
+        width: 100%;
+        padding: 8px;
+        border: none;
+        border-radius: 6px;
+        background: #3a7afe;
+        color: #fff;
+        font-weight: 600;
+        cursor: pointer;
+        margin-bottom: 8px;
+      }
+      button.secondary {
+        background: #2a2a2d;
+      }
+      .row {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 8px;
+      }
+      input {
+        flex: 1;
+        min-width: 0;
+        padding: 8px;
+        border-radius: 6px;
+        border: 1px solid #3a3a3d;
+        background: #111;
+        color: #fff;
+        text-transform: uppercase;
+        letter-spacing: 2px;
       }
       p {
-        margin: 0;
+        margin: 8px 0 0;
         color: #9a9a9a;
+        font-size: 12px;
+      }
+      hr {
+        border: none;
+        border-top: 1px solid #2a2a2d;
+        margin: 12px 0;
       }
     </style>
   </head>
   <body>
-    <main id="app">
+    <main>
       <h1>Clickable Objects</h1>
-      <p>Scaffold placeholder — room join UI arrives in a later step.</p>
+      <div id="code-display" class="code">—</div>
+      <button id="create-btn">Create a room</button>
+      <hr />
+      <div class="row">
+        <input id="join-input" type="text" maxlength="6" placeholder="CODE" />
+        <button id="join-btn" class="secondary" style="width: auto; padding: 8px 14px;">Join</button>
+      </div>
+      <p id="status">Create a room, or join one with a code from your teacher.</p>
     </main>
     <script type="module" src="/src/popup/popup.ts"></script>
   </body>
