@@ -4,20 +4,68 @@
     <meta charset="UTF-8" />
     <title>ScreenView</title>
     <style>
+      * { box-sizing: border-box; }
       body {
         margin: 0;
         font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         background: #18181a;
         color: #f2f2f2;
       }
-      main { max-width: 720px; margin: 0 auto; padding: 32px 16px; }
+      #app { min-height: 100vh; }
+      input, textarea, select { font: inherit; color: inherit; background: #242426; border: 1px solid #3a3a3d; border-radius: 4px; padding: 6px 8px; }
+      label { display: flex; flex-direction: column; gap: 2px; margin: 8px 0; }
+
+      .sv-btn { font: inherit; background: #2e2e31; color: #f2f2f2; border: 1px solid #3a3a3d; border-radius: 4px; padding: 6px 12px; cursor: pointer; }
+      .sv-btn:hover { background: #3a3a3d; }
+      .sv-btn-primary { background: #3a6ee8; border-color: #3a6ee8; }
+      .sv-btn-primary:hover { background: #4a7bf0; }
+      .sv-btn-danger { background: #7a2a2a; border-color: #7a2a2a; }
+      .sv-btn-small { padding: 2px 8px; font-size: 12px; }
+
+      .sv-layout { display: flex; min-height: 100vh; }
+      .sv-sidebar { width: 220px; flex: none; background: #141415; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+      .sv-main { flex: 1; max-width: 900px; padding: 24px 32px; }
+
+      .sv-role-list { display: flex; flex-direction: column; gap: 4px; }
+      .sv-role-item { padding: 8px; border-radius: 4px; cursor: pointer; display: flex; justify-content: space-between; gap: 8px; }
+      .sv-role-item:hover { background: #242426; }
+      .sv-role-item.sv-selected { background: #2e2e31; }
+      .sv-badge { font-size: 11px; color: #a0a0a3; }
+
+      .sv-header { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; }
+      .sv-role-title { font-size: 18px; font-weight: 600; flex: 1; }
+      .sv-role-company { width: 200px; }
+
+      .sv-jd-section { margin-bottom: 24px; }
+      .sv-jd-textarea { width: 100%; resize: vertical; }
+
+      .sv-map-section h2, .sv-stories-section h2 { font-size: 15px; margin: 0 0 12px; }
+
+      .sv-competency-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-bottom: 24px; }
+      .sv-competency-card { border-radius: 6px; padding: 10px; border-width: 2px; border-style: solid; display: flex; flex-direction: column; gap: 6px; min-height: 60px; }
+      .sv-competency-card.sv-gap { background: #3a1414; border-color: #c94545; }
+      .sv-competency-card.sv-covered { background: #123a1a; border-color: #3fae5c; }
+      .sv-competency-card.sv-dropzone-active { outline: 2px dashed #f2f2f2; }
+      .sv-gap-badge { align-self: flex-start; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 6px; border-radius: 3px; background: rgba(255,255,255,0.1); }
+      .sv-linked-stories { display: flex; flex-wrap: wrap; gap: 4px; }
+      .sv-story-chip { background: rgba(255,255,255,0.08); border-radius: 3px; padding: 2px 6px; font-size: 12px; display: flex; align-items: center; gap: 4px; }
+      .sv-story-chip button { background: none; border: none; color: inherit; cursor: pointer; font-size: 11px; padding: 0; }
+
+      .sv-story-shelf { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+      .sv-story-card { background: #242426; border: 1px solid #3a3a3d; border-radius: 6px; padding: 10px; width: 160px; display: flex; flex-direction: column; gap: 6px; cursor: grab; }
+      .sv-story-card.sv-drafted { border-color: #c9a845; cursor: not-allowed; opacity: 0.85; }
+      .sv-draft-badge { font-size: 10px; color: #e0c35a; }
+
+      .sv-story-editor { background: #1e1e20; border: 1px solid #3a3a3d; border-radius: 6px; padding: 16px; margin-top: 12px; max-width: 420px; }
+      .sv-story-editor input { width: 100%; margin-bottom: 8px; }
+      .sv-story-editor textarea { width: 100%; resize: vertical; }
+      .sv-warning { font-size: 11px; color: #e0c35a; min-height: 14px; }
+
+      .sv-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #2e2e31; border: 1px solid #c9a845; color: #f2f2f2; padding: 10px 16px; border-radius: 6px; font-size: 13px; z-index: 1000; }
     </style>
   </head>
   <body>
-    <main id="app">
-      <h1>ScreenView</h1>
-      <p>Scaffold placeholder — the coverage map arrives in "2. The coverage map".</p>
-    </main>
+    <div id="app"></div>
     <script type="module" src="/src/options/index.ts"></script>
   </body>
 </html>
