@@ -1,7 +1,9 @@
-// Shared protocol types for Clickable Objects.
-// TypeScript types only — no runtime code. Both apps/extension and
-// apps/relay import from here so the protocol cannot drift between them.
-// See docs/PRD.md, section "Object model and sync protocol".
+// Shared protocol types for Realia.
+// TypeScript types only — no runtime code. Both apps/realia and
+// apps/realia-relay import from here so the protocol cannot drift
+// between them. See docs/PRD.md, section "Object model and sync
+// protocol" (written when this app was still called Clickable
+// Objects and lived at apps/extension / apps/relay — see docs/REPO.md).
 
 // All coordinates are 0..1 within the stage rectangle, never pixels.
 export type Vec = { x: number; y: number };

@@ -12,11 +12,11 @@ importers:
         specifier: ^5.8.2
         version: 5.9.3
 
-  apps/extension:
+  apps/realia:
     dependencies:
-      '@co/shared':
+      '@realia/shared':
         specifier: workspace:*
-        version: link:../../packages/shared
+        version: link:../../packages/realia-shared
     devDependencies:
       '@types/chrome':
         specifier: ^0.0.280
@@ -28,11 +28,11 @@ importers:
         specifier: ^6.2.0
         version: 6.4.3(@types/node@22.20.4)(tsx@4.23.15)
 
-  apps/relay:
+  apps/realia-relay:
     dependencies:
-      '@co/shared':
+      '@realia/shared':
         specifier: workspace:*
-        version: link:../../packages/shared
+        version: link:../../packages/realia-shared
       ws:
         specifier: ^8.18.0
         version: 8.21.3
@@ -50,7 +50,7 @@ importers:
         specifier: ^5.8.2
         version: 5.9.3
 
-  packages/shared:
+  packages/realia-shared:
     devDependencies:
       typescript:
         specifier: ^5.8.2

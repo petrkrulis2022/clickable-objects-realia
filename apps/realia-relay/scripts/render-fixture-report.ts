@@ -1,12 +1,12 @@
 #!/usr/bin/env -S node --experimental-strip-types
 // Dev helper backing the acceptance check for "8. The report": "the
 // report renders correctly from a recorded log fixture committed to
-// the repo." Run from apps/relay: `node --experimental-strip-types
+// the repo." Run from apps/realia-relay: `node --experimental-strip-types
 // scripts/render-fixture-report.ts [outDir]`.
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { LessonEvent } from "@co/shared";
+import type { LessonEvent } from "@realia/shared";
 import { loadPack } from "../src/packs.ts";
 import { buildSeed, renderReport } from "../src/report.ts";
 

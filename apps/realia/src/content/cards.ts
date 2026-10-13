@@ -1,4 +1,4 @@
-import type { Card, StageObject } from "@co/shared";
+import type { Card, StageObject } from "@realia/shared";
 import type { OverlayHandle } from "./overlay";
 
 export interface CardsControllerOptions {

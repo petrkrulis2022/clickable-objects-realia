@@ -1,4 +1,4 @@
-import type { LessonPack } from "@co/shared";
+import type { LessonPack } from "@realia/shared";
 import { SYSTEM_FONT_STACK, TEACHER_PANEL_BG, TEACHER_PANEL_WIDTH_PX, Z_INDEX_MAX } from "./design";
 import type { OverlayHandle } from "./overlay";
 

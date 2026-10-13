@@ -1,4 +1,4 @@
-import type { ClientMessage, ServerMessage } from "@co/shared";
+import type { ClientMessage, ServerMessage } from "@realia/shared";
 
 const INITIAL_BACKOFF_MS = 500;
 const MAX_BACKOFF_MS = 8000;

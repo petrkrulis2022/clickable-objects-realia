@@ -1,4 +1,4 @@
-import type { Backdrop, Card, StageObject } from "@co/shared";
+import type { Backdrop, Card, StageObject } from "@realia/shared";
 import {
   BACKDROP_CROSSFADE_MS,
   DROP_ZONE_BORDER,

@@ -1,4 +1,4 @@
-import type { Role, StageObject, Vec, Zone } from "@co/shared";
+import type { Role, StageObject, Vec, Zone } from "@realia/shared";
 import {
   DROP_THRESHOLD_STAGE_WIDTH_FRACTION,
   PULSE_MS,

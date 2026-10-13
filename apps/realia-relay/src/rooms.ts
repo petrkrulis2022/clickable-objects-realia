@@ -1,4 +1,4 @@
-import type { LessonEvent, RoomState, Role, StageObject, Vec, Zone } from "@co/shared";
+import type { LessonEvent, RoomState, Role, StageObject, Vec, Zone } from "@realia/shared";
 import type { WebSocket } from "ws";
 import type { ResolvedItem } from "./packs.js";
 

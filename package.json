@@ -4,9 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "build": "pnpm --filter @co/shared build && pnpm --filter @co/extension build",
-    "dev:relay": "pnpm --filter @co/relay dev",
-    "build:relay": "pnpm --filter @co/relay build"
+    "build": "pnpm --filter @realia/shared build && pnpm --filter @realia/app build",
+    "dev:relay": "pnpm --filter @realia/relay dev",
+    "build:relay": "pnpm --filter @realia/relay build"
   },
   "devDependencies": {
     "typescript": "^5.8.2"

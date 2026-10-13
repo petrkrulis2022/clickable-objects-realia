@@ -2,7 +2,7 @@
 // Gemini-based alternative to generate-audio.ts (ElevenLabs), for
 // accounts without ElevenLabs API access. Same contract as the PRD's
 // "6. Reveal cards" build script: pre-generates the two mp3 files
-// (normal, slow) per word, ships them in apps/extension/public/audio,
+// (normal, slow) per word, ships them in apps/realia/public/audio,
 // never runs at runtime, never puts a key in the extension.
 //
 // Run: node --env-file=.env --experimental-strip-types
@@ -15,7 +15,7 @@ import { mkdir } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { join } from "node:path";
 
-const OUT_DIR = join(import.meta.dirname, "..", "..", "extension", "public", "audio");
+const OUT_DIR = join(import.meta.dirname, "..", "..", "realia", "public", "audio");
 const MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash-preview-tts";
 const VOICE_NAME = process.env.GEMINI_VOICE_NAME ?? "Kore";
 

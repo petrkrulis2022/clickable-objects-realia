@@ -1,5 +1,5 @@
 import { STAGE_ASPECT, STAGE_BAND_FRACTION, STAGE_MARGIN_PX } from "./design";
-import type { Vec } from "@co/shared";
+import type { Vec } from "@realia/shared";
 
 export interface StageRect {
   x: number;

@@ -7,7 +7,7 @@
 # ever reaches a real lesson; do not ship tones to a real student.
 set -euo pipefail
 
-OUT_DIR="$(dirname "$0")/../../extension/public/audio"
+OUT_DIR="$(dirname "$0")/../../realia/public/audio"
 mkdir -p "$OUT_DIR"
 
 # id:frequency(Hz) — just gives each word a distinct pitch so they're

@@ -1,14 +1,14 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Backdrop, Card, LessonPack, PackSceneryItem, StageObject, Vec, Zone } from "@co/shared";
+import type { Backdrop, Card, LessonPack, PackSceneryItem, StageObject, Vec, Zone } from "@realia/shared";
 
 // Single source of truth for pack content: bundled with the extension
-// (apps/extension/public/packs), so the teacher's client and the relay
+// (apps/realia/public/packs), so the teacher's client and the relay
 // resolve the exact same file rather than drifting copies. The relay
 // just reads it off disk — no HTTP/asset serving needed here, since
 // pack ASSETS (audio, backdrop images) are extension-bundled and
 // referenced by pack-relative path strings the client resolves itself.
-const PACK_DIR = join(process.cwd(), "..", "extension", "public", "packs");
+const PACK_DIR = join(process.cwd(), "..", "realia", "public", "packs");
 
 const packCache = new Map<string, LessonPack>();
 

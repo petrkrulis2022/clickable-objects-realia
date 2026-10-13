@@ -1,4 +1,4 @@
-import type { ServerMessage, StageObject } from "@co/shared";
+import type { ServerMessage, StageObject } from "@realia/shared";
 import { attachCardsController } from "./cards";
 import { attachDragController } from "./drag";
 import { mountOverlay } from "./overlay";

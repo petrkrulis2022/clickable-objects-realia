@@ -1,6 +1,6 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { LessonEvent } from "@co/shared";
+import type { LessonEvent } from "@realia/shared";
 
 const ROOMS_DIR = join(process.cwd(), "rooms");
 

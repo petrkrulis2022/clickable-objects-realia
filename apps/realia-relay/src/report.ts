@@ -1,4 +1,4 @@
-import type { LessonEvent, LessonPack } from "@co/shared";
+import type { LessonEvent, LessonPack } from "@realia/shared";
 
 export interface ReportInput {
   code: string;

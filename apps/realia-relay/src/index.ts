@@ -1,5 +1,5 @@
 import { WebSocketServer } from "ws";
-import type { ClientMessage, Role } from "@co/shared";
+import type { ClientMessage, Role } from "@realia/shared";
 import { appendEvent, readEvents } from "./eventLog.js";
 import { createReportServer, reportToken, writeReport } from "./httpServer.js";
 import { loadPack, resolveItem } from "./packs.js";

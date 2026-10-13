@@ -2,7 +2,7 @@ node_modules/
 dist/
 *.log
 .DS_Store
-apps/relay/rooms/
-apps/relay/reports/
+apps/realia-relay/rooms/
+apps/realia-relay/reports/
 .env
 .env.*

@@ -17,7 +17,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-const OUT_DIR = join(import.meta.dirname, "..", "..", "extension", "public", "audio");
+const OUT_DIR = join(import.meta.dirname, "..", "..", "realia", "public", "audio");
 const MODEL_ID = "eleven_turbo_v2_5";
 
 interface Voice {
