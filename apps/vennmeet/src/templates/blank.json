@@ -1,0 +1,12 @@
+{
+  "id": "blank",
+  "name": "Blank",
+  "layers": ["private"],
+  "sections": [
+    {
+      "title": "Section 1",
+      "visibility": "private",
+      "cards": []
+    }
+  ]
+}

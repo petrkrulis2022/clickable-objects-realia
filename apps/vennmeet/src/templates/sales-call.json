@@ -1,0 +1,42 @@
+{
+  "id": "sales-call",
+  "name": "Sales call",
+  "layers": ["private"],
+  "sections": [
+    {
+      "title": "Goal",
+      "visibility": "private",
+      "cards": [
+        { "kind": "goal", "title": "This call", "want": "Book a technical follow-up", "walkAway": "No interest after discovery questions" }
+      ]
+    },
+    {
+      "title": "Discovery questions",
+      "visibility": "private",
+      "cards": [
+        { "kind": "list", "title": "Ask", "lines": ["What's driving this now?", "Who else is involved?", "What happens if you do nothing?"] }
+      ]
+    },
+    {
+      "title": "Objections and answers",
+      "visibility": "private",
+      "cards": [
+        { "kind": "note", "title": "\"It's too expensive\"", "text": "Ask what they're comparing it to before answering." }
+      ]
+    },
+    {
+      "title": "Pricing",
+      "visibility": "private",
+      "cards": [
+        { "kind": "number", "title": "Starting price", "value": "$450", "spoken": "four hundred fifty dollars" }
+      ]
+    },
+    {
+      "title": "Next step",
+      "visibility": "private",
+      "cards": [
+        { "kind": "phrase", "title": "Close", "text": "Can we get fifteen minutes with your technical lead next week?" }
+      ]
+    }
+  ]
+}

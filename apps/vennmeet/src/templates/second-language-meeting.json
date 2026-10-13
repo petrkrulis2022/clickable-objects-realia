@@ -1,0 +1,36 @@
+{
+  "id": "second-language-meeting",
+  "name": "Meeting in a second language",
+  "layers": ["private"],
+  "sections": [
+    {
+      "title": "Today's terms",
+      "visibility": "private",
+      "cards": [
+        { "kind": "list", "title": "Terms I'll need", "lines": ["Quarterly", "Stakeholder", "Deliverable"] }
+      ]
+    },
+    {
+      "title": "Numbers as speech",
+      "visibility": "private",
+      "cards": [
+        { "kind": "number", "title": "Budget", "value": "0.45%", "spoken": "zero point four five per cent" }
+      ]
+    },
+    {
+      "title": "Phrases to take the floor",
+      "visibility": "private",
+      "cards": [
+        { "kind": "phrase", "title": "Take the floor", "text": "Can I come in here for a moment?" }
+      ]
+    },
+    {
+      "title": "Rescue phrases",
+      "visibility": "private",
+      "cards": [
+        { "kind": "phrase", "title": "Buy five seconds", "text": "Sorry, could you say that again?" },
+        { "kind": "phrase", "title": "Ask for the word", "text": "I know what I mean, I'm just missing the word for it." }
+      ]
+    }
+  ]
+}

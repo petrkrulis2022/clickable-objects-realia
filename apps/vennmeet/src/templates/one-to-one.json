@@ -1,0 +1,38 @@
+{
+  "id": "one-to-one",
+  "name": "One to one",
+  "layers": ["private", "shared"],
+  "sections": [
+    {
+      "title": "What I want to raise",
+      "visibility": "private",
+      "cards": [
+        { "kind": "list", "title": "Topics", "lines": ["How the last two weeks went", "Where I'm stuck", "What I need from you"] }
+      ]
+    },
+    {
+      "title": "Things unsaid",
+      "visibility": "private",
+      "cards": [
+        { "kind": "note", "title": "Say it this time", "text": "The thing I keep deciding isn't worth bringing up." }
+      ]
+    },
+    {
+      "title": "Agenda",
+      "visibility": "shared",
+      "cards": [
+        { "kind": "list", "title": "Agenda", "lines": ["Check in", "Open topics", "Next steps"] }
+      ]
+    },
+    {
+      "title": "Decisions",
+      "visibility": "shared",
+      "cards": []
+    },
+    {
+      "title": "Actions",
+      "visibility": "shared",
+      "cards": []
+    }
+  ]
+}

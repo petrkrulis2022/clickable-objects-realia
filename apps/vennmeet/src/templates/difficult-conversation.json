@@ -1,0 +1,28 @@
+{
+  "id": "difficult-conversation",
+  "name": "Difficult conversation",
+  "layers": ["private"],
+  "sections": [
+    {
+      "title": "What I need to say",
+      "visibility": "private",
+      "cards": [
+        { "kind": "note", "title": "The point", "text": "Say the hard sentence early, plainly, before softening anything." }
+      ]
+    },
+    {
+      "title": "What I will not say",
+      "visibility": "private",
+      "cards": [
+        { "kind": "list", "title": "Off limits", "lines": ["Anything that sounds like a promise I can't keep", "Blame"] }
+      ]
+    },
+    {
+      "title": "How to end it",
+      "visibility": "private",
+      "cards": [
+        { "kind": "phrase", "title": "Close", "text": "Let's both take a day and talk again on Thursday." }
+      ]
+    }
+  ]
+}

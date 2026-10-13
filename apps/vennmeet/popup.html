@@ -11,20 +11,32 @@
         background: #18181a;
         color: #f2f2f2;
       }
-      main {
-        padding: 16px;
+      #app { padding: 16px; }
+      h1 { font-size: 14px; margin: 0 0 12px; }
+      label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #9a9a9a; margin-bottom: 12px; }
+      select {
+        font: inherit;
+        padding: 6px 8px;
+        border-radius: 6px;
+        border: 1px solid #3a3a3d;
+        background: #111;
+        color: #fff;
       }
-      h1 {
-        font-size: 14px;
-        margin: 0 0 8px;
+      .venn-mode { font-size: 12px; color: #9a9a9a; margin: 0 0 12px; text-transform: capitalize; }
+      .venn-link-btn {
+        font: inherit;
+        width: 100%;
+        padding: 8px;
+        border-radius: 6px;
+        border: none;
+        background: #2a2a2d;
+        color: #fff;
+        cursor: pointer;
       }
     </style>
   </head>
   <body>
-    <main id="app">
-      <h1>Venn</h1>
-      <p>Scaffold placeholder — deck/mode selection arrives in "5. The relay and the shared layer".</p>
-    </main>
+    <div id="app"></div>
     <script type="module" src="/src/popup/index.ts"></script>
   </body>
 </html>

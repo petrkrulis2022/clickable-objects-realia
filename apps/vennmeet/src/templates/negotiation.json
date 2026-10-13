@@ -1,0 +1,37 @@
+{
+  "id": "negotiation",
+  "name": "Negotiation",
+  "layers": ["private", "shared"],
+  "sections": [
+    {
+      "title": "Walk-away",
+      "visibility": "private",
+      "cards": [
+        { "kind": "number", "title": "Walk-away price", "value": "$12k", "spoken": "twelve thousand dollars" }
+      ]
+    },
+    {
+      "title": "Target",
+      "visibility": "private",
+      "cards": [
+        { "kind": "number", "title": "Target price", "value": "$16k", "spoken": "sixteen thousand dollars" }
+      ]
+    },
+    {
+      "title": "Concessions in order",
+      "visibility": "private",
+      "cards": [
+        { "kind": "checklist", "title": "Give these up in this order", "items": [
+          { "text": "Extend payment terms", "done": false },
+          { "text": "Add one free month of support", "done": false },
+          { "text": "Drop the setup fee", "done": false }
+        ] }
+      ]
+    },
+    {
+      "title": "The terms on the table",
+      "visibility": "shared",
+      "cards": []
+    }
+  ]
+}

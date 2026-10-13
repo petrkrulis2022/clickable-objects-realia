@@ -74,17 +74,22 @@ export interface LayerPrefs {
 
 // --- Template schema (docs/SPEC-VENNMEET.md, "Templates") ---
 // A template is a starting deck, not code: declares which layers it
-// uses and ships example sections/cards the user rewrites.
+// uses and ships example sections/cards the user rewrites. Several
+// templates (One to one, Client meeting, Negotiation) use BOTH layers
+// at once, with different sections belonging to each — so visibility
+// is per-section, and the template declares the set of layers across
+// all its sections.
 
 export interface TemplateSection {
   title: string;
+  visibility: Visibility;
   cards: Omit<Card, "id">[];
 }
 
 export interface Template {
   id: string;
   name: string;
-  visibility: Visibility;
+  layers: Visibility[]; // e.g. ['private'], ['shared'], or ['private', 'shared']
   sections: TemplateSection[];
 }
 

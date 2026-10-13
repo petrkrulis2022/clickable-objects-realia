@@ -7,7 +7,8 @@
     "check:permissions": "node scripts/check-permissions.mjs",
     "check:words": "node scripts/check-forbidden-words.mjs",
     "check": "npm run check:permissions && npm run check:words",
-    "build": "npm run check && vite build && vite build --config vite.content.config.ts && vite build --config vite.mainworld.config.ts && vite build --config vite.background.config.ts",
+    "build": "npm run check && npm run test && vite build && vite build --config vite.content.config.ts && vite build --config vite.mainworld.config.ts && vite build --config vite.background.config.ts",
+    "test": "tsx --test $(find src -name '*.test.ts')",
     "dev": "vite build --watch"
   },
   "dependencies": {
@@ -15,6 +16,8 @@
   },
   "devDependencies": {
     "@types/chrome": "^0.0.280",
+    "@types/node": "^22.14.0",
+    "tsx": "^4.19.0",
     "typescript": "^5.8.2",
     "vite": "^6.2.0"
   }

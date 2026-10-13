@@ -1,0 +1,50 @@
+{
+  "id": "client-meeting",
+  "name": "Client meeting",
+  "layers": ["private", "shared"],
+  "sections": [
+    {
+      "title": "Goal",
+      "visibility": "private",
+      "cards": [
+        { "kind": "goal", "title": "This call", "want": "Agree the scope for phase two", "walkAway": "No scope agreed by end of month" }
+      ]
+    },
+    {
+      "title": "Pricing floor",
+      "visibility": "private",
+      "cards": [
+        { "kind": "number", "title": "Floor", "value": "$8k", "spoken": "eight thousand dollars" }
+      ]
+    },
+    {
+      "title": "What not to promise",
+      "visibility": "private",
+      "cards": [
+        { "kind": "list", "title": "Do not commit to", "lines": ["A delivery date before scope is signed off", "Free support beyond the contract"] }
+      ]
+    },
+    {
+      "title": "Agenda",
+      "visibility": "shared",
+      "cards": [
+        { "kind": "list", "title": "Agenda", "lines": ["Review progress", "Scope for next phase", "Timeline"] }
+      ]
+    },
+    {
+      "title": "Updates",
+      "visibility": "shared",
+      "cards": []
+    },
+    {
+      "title": "Decisions",
+      "visibility": "shared",
+      "cards": []
+    },
+    {
+      "title": "Follow-ups",
+      "visibility": "shared",
+      "cards": []
+    }
+  ]
+}

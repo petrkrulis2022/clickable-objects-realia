@@ -4,24 +4,93 @@
     <meta charset="UTF-8" />
     <title>Venn</title>
     <style>
+      * { box-sizing: border-box; }
       body {
         margin: 0;
         font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         background: #18181a;
         color: #f2f2f2;
       }
-      main {
-        max-width: 720px;
-        margin: 0 auto;
-        padding: 32px 16px;
+      .venn-editor-layout {
+        display: flex;
+        height: 100vh;
       }
+      .venn-editor-sidebar {
+        width: 260px;
+        flex-shrink: 0;
+        background: #151517;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        overflow-y: auto;
+      }
+      .venn-editor-main {
+        flex: 1;
+        padding: 24px;
+        overflow-y: auto;
+      }
+      .venn-btn {
+        font: inherit;
+        padding: 8px 12px;
+        border-radius: 6px;
+        border: none;
+        background: #2a2a2d;
+        color: #fff;
+        cursor: pointer;
+      }
+      .venn-btn-primary { background: #7c5cff; }
+      .venn-btn-danger { background: #a33; }
+      .venn-btn-small { padding: 4px 8px; font-size: 12px; }
+      .venn-deck-list { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; }
+      .venn-deck-item {
+        padding: 8px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .venn-deck-item:hover { background: rgba(255,255,255,0.06); }
+      .venn-deck-item.venn-selected { background: rgba(124,92,255,0.18); }
+      .venn-badge { font-size: 11px; color: #9a9a9a; text-transform: uppercase; }
+
+      .venn-template-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+      .venn-template-card {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 16px;
+        border-radius: 10px;
+        background: #222224;
+        border: none;
+        color: #fff;
+        text-align: left;
+        cursor: pointer;
+      }
+      .venn-template-card span { font-size: 12px; color: #9a9a9a; }
+
+      .venn-editor-header { display: flex; gap: 8px; align-items: center; margin-bottom: 20px; }
+      .venn-deck-name { font: inherit; font-size: 20px; font-weight: 600; background: transparent; border: none; color: #fff; flex: 1; }
+
+      .venn-section-editor { background: #1f1f22; border-radius: 10px; padding: 14px; margin-bottom: 16px; }
+      .venn-section-title-row { display: flex; gap: 6px; align-items: center; margin-bottom: 10px; }
+      .venn-section-title-row input { flex: 1; font: inherit; font-weight: 600; background: transparent; border: none; color: #fff; }
+
+      .venn-cards-editor { display: flex; flex-direction: column; gap: 8px; }
+      .venn-card-editor { background: rgba(255,255,255,0.04); border-radius: 8px; padding: 10px; display: flex; gap: 10px; align-items: flex-start; }
+      .venn-card-kind-label { font-size: 11px; text-transform: uppercase; color: #9a9a9a; width: 70px; flex-shrink: 0; padding-top: 6px; }
+      .venn-card-fields { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+      .venn-card-fields label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: #9a9a9a; }
+      .venn-card-fields input { font: inherit; padding: 6px 8px; border-radius: 5px; border: 1px solid #3a3a3d; background: #111; color: #fff; }
+      .venn-warning { color: #d9a441; font-size: 11px; min-height: 14px; }
+      .venn-cap-note { font-size: 12px; color: #9a9a9a; }
+
+      input[type="file"] { display: none; }
     </style>
   </head>
   <body>
-    <main id="app">
-      <h1>Venn</h1>
-      <p>Scaffold placeholder — the deck editor arrives in "4. Decks, editor and templates".</p>
-    </main>
+    <div id="app"></div>
     <script type="module" src="/src/options/index.ts"></script>
   </body>
 </html>

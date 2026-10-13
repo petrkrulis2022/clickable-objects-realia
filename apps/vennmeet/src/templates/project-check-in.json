@@ -1,0 +1,27 @@
+{
+  "id": "project-check-in",
+  "name": "Project check-in",
+  "layers": ["shared"],
+  "sections": [
+    {
+      "title": "Status by workstream",
+      "visibility": "shared",
+      "cards": []
+    },
+    {
+      "title": "Blockers",
+      "visibility": "shared",
+      "cards": []
+    },
+    {
+      "title": "Decisions needed",
+      "visibility": "shared",
+      "cards": []
+    },
+    {
+      "title": "Actions",
+      "visibility": "shared",
+      "cards": []
+    }
+  ]
+}
