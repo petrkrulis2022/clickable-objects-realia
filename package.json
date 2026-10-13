@@ -4,13 +4,16 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "build": "pnpm build:realia && pnpm build:vennmeet",
+    "build": "pnpm build:realia && pnpm build:vennmeet && pnpm build:screenview",
     "build:realia": "pnpm --filter @realia/shared build && pnpm --filter @realia/app build",
     "build:vennmeet": "pnpm --filter @vennmeet/shared build && pnpm --filter @vennmeet/app build",
+    "build:screenview": "pnpm --filter @overlay/shared build && pnpm --filter @screenview/shared build && pnpm --filter @screenview/app build",
     "dev:relay": "pnpm --filter @realia/relay dev",
     "build:relay": "pnpm --filter @realia/relay build",
     "dev:vennmeet-relay": "pnpm --filter @vennmeet/relay dev",
-    "build:vennmeet-relay": "pnpm --filter @vennmeet/relay build"
+    "build:vennmeet-relay": "pnpm --filter @vennmeet/relay build",
+    "dev:screenview-practice": "pnpm --filter @screenview/practice dev",
+    "build:screenview-practice": "pnpm --filter @screenview/practice build"
   },
   "devDependencies": {
     "typescript": "^5.8.2"

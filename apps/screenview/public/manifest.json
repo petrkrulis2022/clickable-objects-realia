@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "ScreenView",
+  "version": "0.0.1",
+  "description": "Interview practice in the same call layer you'll use on the day.",
+  "permissions": ["storage"],
+  "optional_permissions": ["microphone"],
+  "host_permissions": [
+    "https://meet.google.com/*",
+    "https://app.zoom.us/*",
+    "https://teams.microsoft.com/*",
+    "https://teams.live.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://meet.google.com/*",
+        "https://app.zoom.us/*",
+        "https://teams.microsoft.com/*",
+        "https://teams.live.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
