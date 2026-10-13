@@ -1,0 +1,39 @@
+{
+  "transcript": "At my previous job, there was a situation where a major client was about to churn. My task was to win back their trust within two weeks. So I decided to set up a weekly call with their team directly. I also rebuilt the onboarding doc they complained about. As a result, we kept the account and it grew forty percent the next year.",
+  "covered": {
+    "situation": { "covered": true, "seconds": 30 },
+    "task": { "covered": true, "seconds": 8 },
+    "action": { "covered": true, "seconds": 25 },
+    "result": { "covered": true, "seconds": 9 }
+  },
+  "expected": [
+    {
+      "part": "situation",
+      "text": "At my previous job, there was a situation where a major client was about to churn.",
+      "covered": true,
+      "thin": false,
+      "seconds": 30
+    },
+    {
+      "part": "task",
+      "text": "My task was to win back their trust within two weeks.",
+      "covered": true,
+      "thin": true,
+      "seconds": 8
+    },
+    {
+      "part": "action",
+      "text": "So I decided to set up a weekly call with their team directly. I also rebuilt the onboarding doc they complained about.",
+      "covered": true,
+      "thin": false,
+      "seconds": 25
+    },
+    {
+      "part": "result",
+      "text": "As a result, we kept the account and it grew forty percent the next year.",
+      "covered": true,
+      "thin": true,
+      "seconds": 9
+    }
+  ]
+}

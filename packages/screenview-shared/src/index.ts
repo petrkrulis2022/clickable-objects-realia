@@ -1,10 +1,18 @@
-// Shared types for ScreenView. TypeScript types only — no runtime
-// code. Both apps/screenview and apps/screenview-practice import from
-// here. Data model copied verbatim from docs/SPEC-SCREENVIEW.md,
-// "Data model".
+// Shared types for ScreenView, plus a handful of small deterministic
+// pure functions needed on both sides of the practice-service boundary
+// (apps/screenview, the content-script client, and
+// apps/screenview-practice, the Node service): STAR classification,
+// filler counting, and probe selection. Both sides need the identical
+// behaviour — the service to light blocks live, the client to split a
+// stored transcript for the feedback screen — so it lives here once
+// rather than twice. Everything else stays types-only. Data model
+// copied verbatim from docs/SPEC-SCREENVIEW.md, "Data model".
 
 export type Id = string;
 export type StarPart = "situation" | "task" | "action" | "result";
+
+/** Live STAR coverage state — one entry per part. Shared so the service (lighting blocks) and the client (splitting a stored transcript) agree on the shape. */
+export type Covered = Record<StarPart, { covered: boolean; seconds: number }>;
 
 export interface Competency {
   id: Id;
@@ -66,6 +74,11 @@ export interface InterviewDeck {
 }
 
 export type FadeLevel = "notes" | "short-notes" | "outlines" | "after-only" | "none";
+
+export * from "./starClassifier.js";
+export * from "./filler.js";
+export * from "./probes.js";
+export * from "./starSplit.js";
 
 // --- Practice-service protocol ---
 // Not given verbatim by the SPEC (only the architecture diagram and
