@@ -10,6 +10,7 @@ import {
   SYSTEM_FONT_STACK,
   Z_INDEX_MAX,
 } from "./design";
+import { buildMinutesMarkdown } from "./minutes";
 
 const CSS = `
   .venn-shared-root {
@@ -115,7 +116,7 @@ const CSS = `
     border: 1px solid #3a3a3d;
     border-radius: 5px;
   }
-  .venn-add-card-row .venn-btn {
+  .venn-btn {
     font: inherit;
     font-size: 12px;
     padding: 4px 10px;
@@ -125,6 +126,7 @@ const CSS = `
     color: #fff;
     cursor: pointer;
   }
+  .venn-copy-btn { flex-shrink: 0; }
 `;
 
 export interface SharedLayerCallbacks {
@@ -174,7 +176,20 @@ export function mountSharedLayer(root: ShadowRoot, callbacks: SharedLayerCallbac
   indicator.textContent = "Shared layer open";
   const presenceEl = document.createElement("div");
   presenceEl.className = "venn-presence";
-  header.append(indicator, presenceEl);
+  const copyBtn = document.createElement("button");
+  copyBtn.className = "venn-btn venn-copy-btn";
+  copyBtn.textContent = "Copy minutes";
+  copyBtn.addEventListener("click", async () => {
+    const markdown = buildMinutesMarkdown(Object.values(currentCards));
+    try {
+      await navigator.clipboard.writeText(markdown);
+      copyBtn.textContent = "Copied!";
+    } catch {
+      copyBtn.textContent = "Couldn't copy";
+    }
+    setTimeout(() => (copyBtn.textContent = "Copy minutes"), 1500);
+  });
+  header.append(indicator, presenceEl, copyBtn);
   panel.appendChild(header);
 
   const stage = document.createElement("div");
@@ -198,6 +213,7 @@ export function mountSharedLayer(root: ShadowRoot, callbacks: SharedLayerCallbac
 
   let myName = "";
   let cardEls = new Map<Id, HTMLElement>();
+  let currentCards: Record<Id, SharedCard> = {};
   let draggingId: Id | null = null;
   let lastClientX = 0;
   let lastClientY = 0;
@@ -338,6 +354,7 @@ export function mountSharedLayer(root: ShadowRoot, callbacks: SharedLayerCallbac
   }
 
   function setRoom(room: SharedRoom) {
+    currentCards = room.cards;
     const seen = new Set<Id>();
     for (const card of Object.values(room.cards)) {
       seen.add(card.id);
@@ -363,6 +380,7 @@ export function mountSharedLayer(root: ShadowRoot, callbacks: SharedLayerCallbac
 
   function applyPatch(changed: SharedCard[], removed: Id[]) {
     for (const card of changed) {
+      currentCards = { ...currentCards, [card.id]: card };
       if (draggingId === card.id) continue; // see setRoom's comment
       let el = cardEls.get(card.id);
       if (!el) {
@@ -373,6 +391,8 @@ export function mountSharedLayer(root: ShadowRoot, callbacks: SharedLayerCallbac
       layoutCard(card, el);
     }
     for (const id of removed) {
+      const { [id]: _removed, ...rest } = currentCards;
+      currentCards = rest;
       const el = cardEls.get(id);
       if (el) {
         el.remove();

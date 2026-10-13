@@ -71,6 +71,9 @@
       .venn-template-card span { font-size: 12px; color: #9a9a9a; }
 
       .venn-editor-header { display: flex; gap: 8px; align-items: center; margin-bottom: 20px; }
+      .venn-debrief-display { background: #222224; border-radius: 10px; padding: 14px 16px; margin-bottom: 20px; }
+      .venn-debrief-display h3 { margin: 0 0 8px; font-size: 13px; color: #9a9a9a; text-transform: uppercase; letter-spacing: 0.04em; }
+      .venn-debrief-display p { margin: 4px 0; font-size: 13px; }
       .venn-deck-name { font: inherit; font-size: 20px; font-weight: 600; background: transparent; border: none; color: #fff; flex: 1; }
 
       .venn-section-editor { background: #1f1f22; border-radius: 10px; padding: 14px; margin-bottom: 16px; }
@@ -87,6 +90,28 @@
       .venn-cap-note { font-size: 12px; color: #9a9a9a; }
 
       input[type="file"] { display: none; }
+
+      .venn-onboarding-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+      }
+      .venn-onboarding-modal {
+        width: 360px;
+        background: #222224;
+        border-radius: 14px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+        padding: 28px 24px 20px;
+      }
+      .venn-onboarding-step p { font-size: 16px; line-height: 1.5; min-height: 80px; margin: 0 0 16px; }
+      .venn-onboarding-dots { display: flex; gap: 6px; justify-content: center; margin-bottom: 20px; }
+      .venn-onboarding-dot { width: 6px; height: 6px; border-radius: 50%; background: #444; }
+      .venn-onboarding-dot.venn-active { background: #7c5cff; }
+      .venn-onboarding-buttons { display: flex; justify-content: space-between; }
     </style>
   </head>
   <body>

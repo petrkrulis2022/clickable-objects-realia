@@ -181,6 +181,18 @@ export function mountEditor(root: HTMLElement) {
 
     main.appendChild(header);
 
+    if (deck.debrief) {
+      const debriefEl = document.createElement("div");
+      debriefEl.className = "venn-debrief-display";
+      debriefEl.innerHTML = `
+        <h3>Last debrief — ${new Date(deck.debrief.at).toLocaleString()}</h3>
+        <p><strong>What surprised me:</strong> ${escapeHtml(deck.debrief.surprised) || "—"}</p>
+        <p><strong>What I'd say better:</strong> ${escapeHtml(deck.debrief.better) || "—"}</p>
+        <p><strong>What I need to follow up:</strong> ${escapeHtml(deck.debrief.followUp) || "—"}</p>
+      `;
+      main.appendChild(debriefEl);
+    }
+
     const sectionsEl = document.createElement("div");
     sectionsEl.className = "venn-sections";
     main.appendChild(sectionsEl);

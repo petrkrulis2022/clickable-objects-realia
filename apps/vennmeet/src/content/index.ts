@@ -44,6 +44,16 @@ async function main() {
     await saveDeck(deck);
   });
 
+  // "Private layer: on close, offer the three-field debrief... and
+  // save it to the deck. Optional, one click dismisses"
+  // (docs/SPEC-VENNMEET.md, "6. Minutes, debrief and onboarding").
+  // null means the user clicked Skip — nothing to save.
+  layer.onEndSession(async (debrief) => {
+    if (!debrief) return;
+    deck.debrief = debrief;
+    await saveDeck(deck);
+  });
+
   // Fires regardless of how collapse was triggered — the hotkey below,
   // the collapse button, or clicking the collapsed tab to reopen — so
   // prefs never drift from what's actually on screen.

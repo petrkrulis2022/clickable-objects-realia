@@ -1,4 +1,4 @@
-import type { Card, Deck, LayerPrefs } from "@vennmeet/shared";
+import type { Card, Debrief, Deck, LayerPrefs } from "@vennmeet/shared";
 import {
   CARD_TEXT_SIZE_PX,
   CARD_TEXT_WEIGHT,
@@ -159,6 +159,64 @@ const CSS = `
     cursor: pointer;
     flex-shrink: 0;
   }
+
+  .venn-end-session-btn {
+    position: absolute;
+    top: 8px;
+    right: 32px;
+    padding: 2px 8px;
+    border-radius: 5px;
+    border: none;
+    background: rgba(255,255,255,0.08);
+    color: #ccc;
+    font-size: 10px;
+    cursor: pointer;
+  }
+  .venn-panel.venn-collapsed .venn-end-session-btn { display: none; }
+
+  .venn-debrief-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+  }
+  .venn-debrief-overlay.venn-open { display: flex; }
+  .venn-debrief-modal {
+    width: 360px;
+    background: ${PANEL_BG};
+    border-radius: ${PANEL_RADIUS_PX}px;
+    box-shadow: ${PANEL_SHADOW};
+    padding: 20px;
+  }
+  .venn-debrief-modal h3 { margin: 0 0 12px; font-size: 16px; color: #fff; }
+  .venn-debrief-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+  .venn-debrief-field span { font-size: 12px; color: #9a9a9a; }
+  .venn-debrief-field textarea {
+    font: inherit;
+    font-size: 13px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid #3a3a3d;
+    background: #111;
+    color: #fff;
+    resize: vertical;
+    min-height: 44px;
+  }
+  .venn-debrief-buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+  .venn-btn {
+    font: inherit;
+    font-size: 13px;
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: none;
+    background: #3a3a3d;
+    color: #fff;
+    cursor: pointer;
+  }
+  .venn-btn-primary { background: ${SHARED_ACCENT_COLOR}; }
 `;
 
 export interface LayerHandle {
@@ -171,6 +229,8 @@ export interface LayerHandle {
   onCollapseChange(cb: (collapsed: boolean) => void): void;
   /** Hides the layer entirely, collapsed tab included, independent of collapse state — for screen share (docs/SPEC-VENNMEET.md, "3. Hide on screen share"). */
   setSharing(sharing: boolean): void;
+  /** Called when the teacher/user clicks "End session" — the debrief prompt's trigger (docs/SPEC-VENNMEET.md, "6. Minutes, debrief and onboarding"). */
+  onEndSession(cb: (debrief: Debrief | null) => void): void;
   destroy(): void;
 }
 
@@ -314,6 +374,47 @@ export function mountLayer(): LayerHandle {
   collapseBtn.textContent = "‖";
   panel.appendChild(collapseBtn);
 
+  const endSessionBtn = document.createElement("button");
+  endSessionBtn.className = "venn-end-session-btn";
+  endSessionBtn.textContent = "End session";
+  panel.appendChild(endSessionBtn);
+
+  const debriefOverlay = document.createElement("div");
+  debriefOverlay.className = "venn-debrief-overlay";
+  const debriefModal = document.createElement("div");
+  debriefModal.className = "venn-debrief-modal";
+  debriefOverlay.appendChild(debriefModal);
+  rootEl.appendChild(debriefOverlay);
+
+  const debriefTitle = document.createElement("h3");
+  debriefTitle.textContent = "Before you go";
+  debriefModal.appendChild(debriefTitle);
+
+  function debriefField(label: string): { wrap: HTMLElement; input: HTMLTextAreaElement } {
+    const wrap = document.createElement("label");
+    wrap.className = "venn-debrief-field";
+    const span = document.createElement("span");
+    span.textContent = label;
+    const input = document.createElement("textarea");
+    wrap.append(span, input);
+    return { wrap, input };
+  }
+  const surprised = debriefField("What surprised me");
+  const better = debriefField("What I'd say better");
+  const followUp = debriefField("What I need to follow up");
+  debriefModal.append(surprised.wrap, better.wrap, followUp.wrap);
+
+  const debriefButtons = document.createElement("div");
+  debriefButtons.className = "venn-debrief-buttons";
+  const skipBtn = document.createElement("button");
+  skipBtn.className = "venn-btn";
+  skipBtn.textContent = "Skip";
+  const saveBtn = document.createElement("button");
+  saveBtn.className = "venn-btn venn-btn-primary";
+  saveBtn.textContent = "Save";
+  debriefButtons.append(skipBtn, saveBtn);
+  debriefModal.appendChild(debriefButtons);
+
   const tabs = document.createElement("div");
   tabs.className = "venn-tabs";
   panel.appendChild(tabs);
@@ -380,6 +481,29 @@ export function mountLayer(): LayerHandle {
     if (collapsed) setCollapsed(false);
   });
 
+  let endSessionCb: ((debrief: Debrief | null) => void) | null = null;
+
+  endSessionBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    surprised.input.value = "";
+    better.input.value = "";
+    followUp.input.value = "";
+    debriefOverlay.classList.add("venn-open");
+  });
+  skipBtn.addEventListener("click", () => {
+    debriefOverlay.classList.remove("venn-open");
+    endSessionCb?.(null);
+  });
+  saveBtn.addEventListener("click", () => {
+    debriefOverlay.classList.remove("venn-open");
+    endSessionCb?.({
+      surprised: surprised.input.value,
+      better: better.input.value,
+      followUp: followUp.input.value,
+      at: new Date().toISOString(),
+    });
+  });
+
   function setDeck(deck: Deck) {
     currentDeck = deck;
     currentSectionIndex = 0;
@@ -411,6 +535,9 @@ export function mountLayer(): LayerHandle {
       collapseCb = cb;
     },
     setSharing,
+    onEndSession: (cb) => {
+      endSessionCb = cb;
+    },
     destroy: () => host.remove(),
   };
 }

@@ -126,6 +126,17 @@ async function main() {
   optionsLink.textContent = "Open deck editor";
   optionsLink.addEventListener("click", () => chrome.runtime.openOptionsPage());
   app.appendChild(optionsLink);
+
+  // "Onboarding shows once and reopens from the popup"
+  // (docs/SPEC-VENNMEET.md, "6. Minutes, debrief and onboarding") —
+  // the #onboarding hash forces it regardless of the seen flag.
+  const onboardingLink = document.createElement("button");
+  onboardingLink.className = "venn-link-btn";
+  onboardingLink.textContent = "View onboarding";
+  onboardingLink.addEventListener("click", () => {
+    void chrome.tabs.create({ url: chrome.runtime.getURL("options.html#onboarding") });
+  });
+  app.appendChild(onboardingLink);
 }
 
 void main();
