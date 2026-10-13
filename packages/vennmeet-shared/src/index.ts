@@ -43,11 +43,21 @@ export interface Deck {
   updatedAt: string;
 }
 
+export type Pos = { x: number; y: number };
+
+// A card as it exists on the shared layer: the SPEC's ClientMessage
+// 'move' needs somewhere to persist a position, and 'patch' needs to
+// carry it (plus hold/pin state) to peers — neither is on the base
+// Card type, since private-layer cards are listed, never freely
+// dragged on a stage. Filling that gap here, in the one place both
+// SharedRoom and ServerMessage.patch read from, so it can't drift.
+export type SharedCard = Card & { pos?: Pos; pinnedBy?: string; heldBy?: string | null };
+
 // Only this crosses the network, and only when a shared layer is open.
 export interface SharedRoom {
   code: string;
   rev: number;
-  cards: Record<Id, Card & { pinnedBy?: string; heldBy?: string | null }>;
+  cards: Record<Id, SharedCard>;
   present: { name: string; joinedAt: string }[];
 }
 
@@ -55,14 +65,14 @@ export type ClientMessage =
   | { type: "propose"; name: string } // returns a code
   | { type: "join"; code: string; name: string }
   | { type: "put"; card: Card }
-  | { type: "move"; id: Id; pos: { x: number; y: number } }
+  | { type: "move"; id: Id; pos: Pos }
   | { type: "pin"; id: Id }
   | { type: "remove"; id: Id }
   | { type: "leave" };
 
 export type ServerMessage =
   | { type: "room"; room: SharedRoom; you: string }
-  | { type: "patch"; rev: number; changed: Card[]; removed: Id[] }
+  | { type: "patch"; rev: number; changed: SharedCard[]; removed: Id[] }
   | { type: "present"; present: SharedRoom["present"] };
 
 export interface LayerPrefs {
