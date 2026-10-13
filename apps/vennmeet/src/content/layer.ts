@@ -36,6 +36,7 @@ const CSS = `
     pointer-events: none;
     font-family: ${SYSTEM_FONT_STACK};
   }
+  .venn-root.venn-sharing { display: none; }
   .venn-panel {
     position: absolute;
     box-sizing: border-box;
@@ -168,6 +169,8 @@ export interface LayerHandle {
   onChecklistToggle(cb: (cardId: string, itemIndex: number) => void): void;
   /** Fires on every collapse-state change, however it was triggered (hotkey, collapse button, or clicking the collapsed tab to reopen). */
   onCollapseChange(cb: (collapsed: boolean) => void): void;
+  /** Hides the layer entirely, collapsed tab included, independent of collapse state — for screen share (docs/SPEC-VENNMEET.md, "3. Hide on screen share"). */
+  setSharing(sharing: boolean): void;
   destroy(): void;
 }
 
@@ -384,6 +387,10 @@ export function mountLayer(): LayerHandle {
     renderSection();
   }
 
+  function setSharing(sharing: boolean) {
+    rootEl.classList.toggle("venn-sharing", sharing);
+  }
+
   function setPrefs(prefs: LayerPrefs) {
     panel.dataset.dock = prefs.dock;
     panel.dataset.size = prefs.size;
@@ -403,6 +410,7 @@ export function mountLayer(): LayerHandle {
     onCollapseChange: (cb) => {
       collapseCb = cb;
     },
+    setSharing,
     destroy: () => host.remove(),
   };
 }

@@ -3,6 +3,7 @@ import { HARDCODED_DECK } from "./hardcodedDeck";
 import { mountLayer } from "./layer";
 import { loadLayerPrefs, saveLayerPrefs } from "./prefs";
 import { detectPlatform } from "./platform";
+import { onShareChange } from "./shareWatcher";
 
 console.log("[venn] content script loaded on", location.href);
 
@@ -44,8 +45,16 @@ async function main() {
     void saveLayerPrefs(platform, prefs);
   });
 
+  // "On share start both layers disappear entirely... and toggle-layer
+  // does nothing" (docs/SPEC-VENNMEET.md, "3. Hide on screen share").
+  let isSharing = false;
+  onShareChange((sharing) => {
+    isSharing = sharing;
+    layer.setSharing(sharing);
+  });
+
   chrome.runtime.onMessage.addListener((msg) => {
-    if (msg?.type === "toggle-layer") layer.toggleCollapse();
+    if (msg?.type === "toggle-layer" && !isSharing) layer.toggleCollapse();
   });
 }
 
