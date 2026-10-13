@@ -1,0 +1,21 @@
+{
+  "name": "@vennmeet/app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "check:permissions": "node scripts/check-permissions.mjs",
+    "check:words": "node scripts/check-forbidden-words.mjs",
+    "check": "npm run check:permissions && npm run check:words",
+    "build": "npm run check && vite build && vite build --config vite.content.config.ts && vite build --config vite.mainworld.config.ts && vite build --config vite.background.config.ts",
+    "dev": "vite build --watch"
+  },
+  "dependencies": {
+    "@vennmeet/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.280",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.0"
+  }
+}

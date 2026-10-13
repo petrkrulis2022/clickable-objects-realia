@@ -4,9 +4,13 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "build": "pnpm --filter @realia/shared build && pnpm --filter @realia/app build",
+    "build": "pnpm build:realia && pnpm build:vennmeet",
+    "build:realia": "pnpm --filter @realia/shared build && pnpm --filter @realia/app build",
+    "build:vennmeet": "pnpm --filter @vennmeet/shared build && pnpm --filter @vennmeet/app build",
     "dev:relay": "pnpm --filter @realia/relay dev",
-    "build:relay": "pnpm --filter @realia/relay build"
+    "build:relay": "pnpm --filter @realia/relay build",
+    "dev:vennmeet-relay": "pnpm --filter @vennmeet/relay dev",
+    "build:vennmeet-relay": "pnpm --filter @vennmeet/relay build"
   },
   "devDependencies": {
     "typescript": "^5.8.2"
