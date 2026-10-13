@@ -47,8 +47,14 @@ if (existsSync(copyPath)) {
 const onboardingPath = join(ROOT, "src", "options", "onboarding.ts");
 if (existsSync(onboardingPath)) {
   const text = readFileSync(onboardingPath, "utf8");
-  const match = text.match(WORD_RE);
-  if (match) violations.push(`src/options/onboarding.ts: contains "${match[0]}"`);
+  // Only the SCREENS array is user-facing copy — the rest of this file
+  // is UI code that legitimately uses words like "hidden" as a CSS
+  // visibility value, same reasoning as apps/vennmeet's checker (which
+  // doesn't scan onboarding.ts at all for exactly this reason).
+  const screensMatch = text.match(/const SCREENS[^[]*\[([\s\S]*?)\];/);
+  const copyText = screensMatch ? screensMatch[1] : "";
+  const match = copyText.match(WORD_RE);
+  if (match) violations.push(`src/options/onboarding.ts: SCREENS contains "${match[0]}"`);
 }
 
 if (violations.length > 0) {

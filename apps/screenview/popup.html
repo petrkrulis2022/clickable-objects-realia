@@ -13,13 +13,14 @@
       }
       main { padding: 16px; }
       h1 { font-size: 14px; margin: 0 0 8px; }
+      label { display: flex; flex-direction: column; gap: 2px; margin: 0 0 10px; font-size: 12px; }
+      select { font: inherit; color: inherit; background: #242426; border: 1px solid #3a3a3d; border-radius: 4px; padding: 6px 8px; }
+      .sv-link-btn { display: block; width: 100%; margin-bottom: 6px; font: inherit; background: #2e2e31; color: #f2f2f2; border: 1px solid #3a3a3d; border-radius: 4px; padding: 6px 10px; cursor: pointer; text-align: left; }
+      .sv-link-btn:hover { background: #3a3a3d; }
     </style>
   </head>
   <body>
-    <main id="app">
-      <h1>ScreenView</h1>
-      <p>Scaffold placeholder.</p>
-    </main>
+    <main id="app"></main>
     <script type="module" src="/src/popup/index.ts"></script>
   </body>
 </html>

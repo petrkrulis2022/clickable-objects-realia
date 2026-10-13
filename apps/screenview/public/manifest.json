@@ -29,6 +29,17 @@
       ],
       "js": ["content.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://meet.google.com/*",
+        "https://app.zoom.us/*",
+        "https://teams.microsoft.com/*",
+        "https://teams.live.com/*"
+      ],
+      "js": ["mainWorld.js"],
+      "world": "MAIN",
+      "run_at": "document_start"
     }
   ]
 }
