@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Clickable Objects — plan</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #18181a;
+        color: #f2f2f2;
+      }
+      main { max-width: 640px; margin: 0 auto; padding: 32px 16px; }
+      h1 { font-size: 16px; }
+      h2 { font-size: 15px; margin: 0 0 8px; }
+      label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #9a9a9a; margin-bottom: 14px; }
+      textarea, input[type="text"] {
+        font: inherit;
+        padding: 8px;
+        border-radius: 6px;
+        border: 1px solid #3a3a3d;
+        background: #111;
+        color: #fff;
+        resize: vertical;
+      }
+
+      .co-draft-hint { font-size: 13px; color: #9a9a9a; max-width: 520px; }
+      .co-draft-file-list { list-style: none; padding: 0; margin: 4px 0 12px; font-size: 12px; color: #ccc; }
+      .co-draft-record-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+      .co-draft-record-status { font-size: 12px; color: #9a9a9a; }
+      .co-draft-status { font-size: 13px; color: #d9a441; min-height: 18px; }
+      .co-draft-btn {
+        font: inherit;
+        font-size: 14px;
+        padding: 8px 14px;
+        border-radius: 6px;
+        border: 1px solid #3a3a3d;
+        background: #2a2a2d;
+        color: #fff;
+        cursor: pointer;
+        margin-right: 8px;
+        margin-bottom: 8px;
+      }
+      .co-draft-btn:hover { background: #3a3a3d; }
+      .co-draft-btn:disabled { opacity: 0.4; cursor: default; }
+      .co-draft-btn-primary { background: #3a7afe; border-color: #3a7afe; font-weight: 600; }
+      .co-draft-btn-primary:hover { background: #4a86ff; }
+
+      .co-approval-summary { font-size: 14px; color: #ddd; background: #232326; border-radius: 8px; padding: 10px 14px; }
+      .co-approval-list { padding-left: 20px; }
+      .co-approval-item { padding: 6px 8px; border-radius: 6px; cursor: pointer; margin-bottom: 2px; }
+      .co-approval-item:hover { background: #232326; }
+      .co-approval-item.co-selected { background: #2f3f6f; }
+      .co-approval-actions { margin-top: 16px; }
+      .co-approval-done p { font-size: 14px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Clickable Objects</h1>
+      <div id="app"></div>
+    </main>
+    <script type="module" src="/src/options/index.ts"></script>
+  </body>
+</html>

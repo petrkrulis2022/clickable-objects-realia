@@ -2,7 +2,7 @@ import type { ServerMessage, StageObject } from "@realia/shared";
 import { attachCardsController } from "./cards";
 import { attachDragController } from "./drag";
 import { mountOverlay } from "./overlay";
-import { buildZoneAnchorLabel, loadPack } from "./pack";
+import { buildZoneAnchorLabel, getSelectedPack, loadPack } from "./pack";
 import { attachTeacherPanel, type TeacherPanelController } from "./teacherPanel";
 import { connect } from "./ws";
 
@@ -10,7 +10,6 @@ import { connect } from "./ws";
 // with a valid certificate (docs/PRD.md, "The relay"). ws:// only
 // survives Chrome's mixed-content blocking on localhost.
 const RELAY_URL = "ws://localhost:8787";
-const DEFAULT_PACK_ID = "a2-prepositions-place";
 
 export interface Session {
   destroy(): void;
@@ -21,7 +20,8 @@ export function startSession(code: string): Session {
   let cleanup: (() => void) | null = null;
 
   (async () => {
-    const pack = await loadPack(DEFAULT_PACK_ID);
+    const { packId, isCustom } = await getSelectedPack();
+    const pack = await loadPack(packId, isCustom);
     if (destroyed) return;
     const zoneAnchorLabel = buildZoneAnchorLabel(pack);
 

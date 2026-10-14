@@ -1,23 +1,38 @@
-import { readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Backdrop, Card, LessonPack, PackSceneryItem, StageObject, Vec, Zone } from "@realia/shared";
 
-// Single source of truth for pack content: bundled with the extension
-// (apps/realia/public/packs), so the teacher's client and the relay
-// resolve the exact same file rather than drifting copies. The relay
-// just reads it off disk — no HTTP/asset serving needed here, since
-// pack ASSETS (audio, backdrop images) are extension-bundled and
-// referenced by pack-relative path strings the client resolves itself.
+// Bundled packs (apps/realia/public/packs) are the single source of
+// truth for the STATIC content shipped with the extension — the
+// teacher's client and the relay resolve the exact same file rather
+// than drifting copies. A generated pack (approved from the AI plan
+// drafter) is different: it exists only at runtime, so it's written
+// here instead, to the relay's own directory, never into the
+// extension's source tree (which the already-loaded unpacked
+// extension couldn't see until a rebuild anyway). The client fetches
+// a generated pack from the relay over HTTP rather than
+// chrome.runtime.getURL, so both sides resolve the identical bytes.
 const PACK_DIR = join(process.cwd(), "..", "realia", "public", "packs");
+const CUSTOM_PACK_DIR = join(process.cwd(), "custom-packs");
 
 const packCache = new Map<string, LessonPack>();
 
 export function loadPack(packId: string): LessonPack {
   const cached = packCache.get(packId);
   if (cached) return cached;
-  const pack = JSON.parse(readFileSync(join(PACK_DIR, `${packId}.json`), "utf8")) as LessonPack;
+
+  const customPath = join(CUSTOM_PACK_DIR, `${packId}.json`);
+  const path = existsSync(customPath) ? customPath : join(PACK_DIR, `${packId}.json`);
+  const pack = JSON.parse(readFileSync(path, "utf8")) as LessonPack;
   packCache.set(packId, pack);
   return pack;
+}
+
+/** Writes a generated pack to disk and seeds the cache with it, so the very next loadPack() call (from either the client's fetch or the relay's own setActivity handling) sees it immediately. */
+export function saveCustomPack(pack: LessonPack): void {
+  mkdirSync(CUSTOM_PACK_DIR, { recursive: true });
+  writeFileSync(join(CUSTOM_PACK_DIR, `${pack.id}.json`), JSON.stringify(pack, null, 2), "utf8");
+  packCache.set(pack.id, pack);
 }
 
 // The pack schema doesn't specify draggable/card tray positions (only

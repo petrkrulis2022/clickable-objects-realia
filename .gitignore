@@ -4,5 +4,6 @@ dist/
 .DS_Store
 apps/realia-relay/rooms/
 apps/realia-relay/reports/
+apps/realia-relay/custom-packs/
 .env
 .env.*

@@ -36,3 +36,6 @@ joinBtn.addEventListener("click", () => {
   if (!code) return;
   chrome.storage.local.set({ [STORAGE_KEY]: code }, () => render(code));
 });
+
+const planBtn = document.getElementById("plan-btn");
+planBtn?.addEventListener("click", () => chrome.runtime.openOptionsPage());

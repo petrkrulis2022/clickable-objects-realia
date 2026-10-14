@@ -1,8 +1,29 @@
 import type { LessonPack } from "@realia/shared";
 
-export async function loadPack(packId: string): Promise<LessonPack> {
-  const res = await fetch(chrome.runtime.getURL(`packs/${packId}.json`));
+const RELAY_HTTP_URL = "ws://localhost:8787".replace("ws", "http");
+export const DEFAULT_PACK_ID = "a2-prepositions-place";
+const SELECTED_PACK_KEY = "realia.selectedPackId";
+const SELECTED_PACK_IS_CUSTOM_KEY = "realia.selectedPackIsCustom";
+
+/** Static packs come bundled with the extension; a generated pack (approved via the options page) lives on the relay instead — see apps/realia-relay/src/packs.ts's comment for why. */
+export async function loadPack(packId: string, isCustom = false): Promise<LessonPack> {
+  const res = isCustom
+    ? await fetch(`${RELAY_HTTP_URL}/packs/${packId}`)
+    : await fetch(chrome.runtime.getURL(`packs/${packId}.json`));
   return (await res.json()) as LessonPack;
+}
+
+/** Which pack this session should load — the teacher's last-approved generated pack, or the shipped default if none has been approved yet. */
+export async function getSelectedPack(): Promise<{ packId: string; isCustom: boolean }> {
+  const result = await chrome.storage.local.get([SELECTED_PACK_KEY, SELECTED_PACK_IS_CUSTOM_KEY]);
+  const packId = (result[SELECTED_PACK_KEY] as string | undefined) ?? DEFAULT_PACK_ID;
+  const isCustom = (result[SELECTED_PACK_IS_CUSTOM_KEY] as boolean | undefined) ?? false;
+  return { packId, isCustom };
+}
+
+/** Called once a draft is approved on the options page — makes it the pack the next session loads, on both sides (see loadPack's custom-fetch branch). */
+export async function setSelectedPack(packId: string, isCustom: boolean): Promise<void> {
+  await chrome.storage.local.set({ [SELECTED_PACK_KEY]: packId, [SELECTED_PACK_IS_CUSTOM_KEY]: isCustom });
 }
 
 /**
