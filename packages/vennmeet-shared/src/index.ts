@@ -41,6 +41,8 @@ export interface Deck {
   debrief?: Debrief;
   createdAt: string;
   updatedAt: string;
+  /** True for a deck (or draft) an AI assistant drafted from uploaded materials, not yet reviewed. Cleared on first edit or explicit dismissal — informational, not a hard gate like ScreenView's per-story draftedByModel. */
+  draftedByModel?: boolean;
 }
 
 export type Pos = { x: number; y: number };

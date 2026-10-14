@@ -11,6 +11,7 @@ import {
   saveDeck,
 } from "./decks";
 import { isLongLine, LONG_LINE_MESSAGE } from "./longLineWarning";
+import { mountDraftForm } from "./draftFromMaterials";
 
 function genId(): string {
   return crypto.randomUUID();
@@ -71,6 +72,12 @@ export function mountEditor(root: HTMLElement) {
     newBtn.addEventListener("click", () => showTemplatePicker());
     sidebar.appendChild(newBtn);
 
+    const draftBtn = document.createElement("button");
+    draftBtn.className = "venn-btn";
+    draftBtn.textContent = "✨ Draft from materials";
+    draftBtn.addEventListener("click", () => showDraftForm());
+    sidebar.appendChild(draftBtn);
+
     const importBtn = document.createElement("button");
     importBtn.className = "venn-btn";
     importBtn.textContent = "Import JSON";
@@ -82,11 +89,24 @@ export function mountEditor(root: HTMLElement) {
     for (const deck of decks) {
       const item = document.createElement("div");
       item.className = "venn-deck-item" + (deck.id === selectedId ? " venn-selected" : "");
-      item.innerHTML = `<strong>${escapeHtml(deck.name)}</strong><span class="venn-badge">${deck.visibility}</span>`;
+      item.innerHTML = `<strong>${escapeHtml(deck.name)}</strong><span class="venn-badge">${deck.visibility}</span>${deck.draftedByModel ? '<span class="venn-badge venn-draft-badge">draft</span>' : ""}`;
       item.addEventListener("click", () => selectDeck(deck.id));
       list.appendChild(item);
     }
     sidebar.appendChild(list);
+  }
+
+  function showDraftForm() {
+    selectedId = null;
+    renderSidebar();
+    main.innerHTML = "";
+    mountDraftForm(main, {
+      onDraftReady: async (deck) => {
+        await saveDeck(deck);
+        await refreshSidebar();
+        await selectDeck(deck.id);
+      },
+    });
   }
 
   async function selectDeck(id: string) {
@@ -181,6 +201,23 @@ export function mountEditor(root: HTMLElement) {
 
     main.appendChild(header);
 
+    if (deck.draftedByModel) {
+      const banner = document.createElement("div");
+      banner.className = "venn-draft-banner";
+      const text = document.createElement("span");
+      text.textContent = "AI-drafted from your materials — review every card before your meeting.";
+      const dismissBtn = document.createElement("button");
+      dismissBtn.className = "venn-btn venn-btn-small";
+      dismissBtn.textContent = "Looks good, dismiss";
+      dismissBtn.addEventListener("click", async () => {
+        deck.draftedByModel = false;
+        await persist(deck);
+        renderDeckEditor(deck);
+      });
+      banner.append(text, dismissBtn);
+      main.appendChild(banner);
+    }
+
     if (deck.debrief) {
       const debriefEl = document.createElement("div");
       debriefEl.className = "venn-debrief-display";
@@ -212,6 +249,9 @@ export function mountEditor(root: HTMLElement) {
     main.appendChild(addSectionBtn);
 
     async function persist(d: Deck) {
+      // Any edit counts as review — the banner's dismiss button is a
+      // shortcut for "it's fine as-is," not the only way to clear it.
+      if (d.draftedByModel) d.draftedByModel = false;
       await saveDeck(d);
       decks = decks.map((x) => (x.id === d.id ? d : x));
     }
