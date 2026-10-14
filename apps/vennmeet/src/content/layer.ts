@@ -160,6 +160,26 @@ const CSS = `
     flex-shrink: 0;
   }
 
+  .venn-drag-handle {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    width: 20px;
+    height: 20px;
+    border-radius: 5px;
+    border: none;
+    background: rgba(255,255,255,0.08);
+    color: #ccc;
+    font-size: 12px;
+    line-height: 20px;
+    text-align: center;
+    cursor: grab;
+    flex-shrink: 0;
+    touch-action: none;
+  }
+  .venn-drag-handle.venn-dragging { cursor: grabbing; }
+  .venn-panel.venn-collapsed .venn-drag-handle { display: none; }
+
   .venn-end-session-btn {
     position: absolute;
     top: 8px;
@@ -227,6 +247,8 @@ export interface LayerHandle {
   onChecklistToggle(cb: (cardId: string, itemIndex: number) => void): void;
   /** Fires on every collapse-state change, however it was triggered (hotkey, collapse button, or clicking the collapsed tab to reopen). */
   onCollapseChange(cb: (collapsed: boolean) => void): void;
+  /** Fires once per drag, when the user releases the drag handle — the new position, in viewport pixels. */
+  onPositionChange(cb: (pos: { x: number; y: number }) => void): void;
   /** Hides the layer entirely, collapsed tab included, independent of collapse state — for screen share (docs/SPEC-VENNMEET.md, "3. Hide on screen share"). */
   setSharing(sharing: boolean): void;
   /** Called when the teacher/user clicks "End session" — the debrief prompt's trigger (docs/SPEC-VENNMEET.md, "6. Minutes, debrief and onboarding"). */
@@ -374,6 +396,17 @@ export function mountLayer(): LayerHandle {
   collapseBtn.textContent = "‖";
   panel.appendChild(collapseBtn);
 
+  // Free drag-to-reposition (docs/SPEC-VENNMEET.md doesn't specify
+  // this; added on request so the private layer can go anywhere on
+  // screen, not just the three dock presets). A dedicated handle
+  // rather than the whole panel, so dragging never fights with
+  // clicking a tab, a checklist item, or the collapse button.
+  const dragHandle = document.createElement("button");
+  dragHandle.className = "venn-drag-handle";
+  dragHandle.textContent = "⠿";
+  dragHandle.title = "Drag to move";
+  panel.appendChild(dragHandle);
+
   const endSessionBtn = document.createElement("button");
   endSessionBtn.className = "venn-end-session-btn";
   endSessionBtn.textContent = "End session";
@@ -430,6 +463,7 @@ export function mountLayer(): LayerHandle {
   let collapsed = false;
   let checklistCb: ((cardId: string, itemIndex: number) => void) | null = null;
   let collapseCb: ((collapsed: boolean) => void) | null = null;
+  let positionCb: ((pos: { x: number; y: number }) => void) | null = null;
 
   function renderSection() {
     body.innerHTML = "";
@@ -481,6 +515,47 @@ export function mountLayer(): LayerHandle {
     if (collapsed) setCollapsed(false);
   });
 
+  function clampToViewport(x: number, y: number): { x: number; y: number } {
+    const rect = panel.getBoundingClientRect();
+    const maxX = Math.max(0, window.innerWidth - rect.width);
+    const maxY = Math.max(0, window.innerHeight - rect.height);
+    return { x: Math.min(Math.max(x, 0), maxX), y: Math.min(Math.max(y, 0), maxY) };
+  }
+
+  /** Switches the panel onto free pixel positioning — "custom" matches no `[data-dock]` CSS rule, so nothing fights the inline left/top. */
+  function applyPosition(pos: { x: number; y: number }) {
+    panel.dataset.dock = "custom";
+    panel.style.transform = "none";
+    panel.style.right = "auto";
+    panel.style.left = `${pos.x}px`;
+    panel.style.top = `${pos.y}px`;
+  }
+
+  let dragOffset: { x: number; y: number } | null = null;
+
+  dragHandle.addEventListener("pointerdown", (e) => {
+    e.stopPropagation();
+    const rect = panel.getBoundingClientRect();
+    dragOffset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    dragHandle.classList.add("venn-dragging");
+    dragHandle.setPointerCapture(e.pointerId);
+  });
+  dragHandle.addEventListener("pointermove", (e) => {
+    if (!dragOffset) return;
+    applyPosition(clampToViewport(e.clientX - dragOffset.x, e.clientY - dragOffset.y));
+  });
+  function endDrag(e: PointerEvent) {
+    if (!dragOffset) return;
+    const pos = clampToViewport(e.clientX - dragOffset.x, e.clientY - dragOffset.y);
+    applyPosition(pos);
+    dragOffset = null;
+    dragHandle.classList.remove("venn-dragging");
+    dragHandle.releasePointerCapture(e.pointerId);
+    positionCb?.(pos);
+  }
+  dragHandle.addEventListener("pointerup", endDrag);
+  dragHandle.addEventListener("pointercancel", endDrag);
+
   let endSessionCb: ((debrief: Debrief | null) => void) | null = null;
 
   endSessionBtn.addEventListener("click", (e) => {
@@ -516,7 +591,8 @@ export function mountLayer(): LayerHandle {
   }
 
   function setPrefs(prefs: LayerPrefs) {
-    panel.dataset.dock = prefs.dock;
+    if (prefs.posPx) applyPosition(prefs.posPx);
+    else panel.dataset.dock = prefs.dock;
     panel.dataset.size = prefs.size;
     panel.style.opacity = String(prefs.opacity);
     setCollapsed(prefs.collapsed.private);
@@ -533,6 +609,9 @@ export function mountLayer(): LayerHandle {
     },
     onCollapseChange: (cb) => {
       collapseCb = cb;
+    },
+    onPositionChange: (cb) => {
+      positionCb = cb;
     },
     setSharing,
     onEndSession: (cb) => {

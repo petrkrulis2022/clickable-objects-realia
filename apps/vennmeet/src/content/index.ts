@@ -62,6 +62,13 @@ async function main() {
     void saveLayerPrefs(platform, prefs);
   });
 
+  // Free drag-to-reposition — persisted per platform like everything
+  // else in prefs, so the panel stays where you put it next time.
+  layer.onPositionChange((pos) => {
+    prefs.posPx = pos;
+    void saveLayerPrefs(platform, prefs);
+  });
+
   // --- The shared layer (docs/SPEC-VENNMEET.md, "5. The relay and the shared layer") ---
   // No session exists yet — no socket is open. One is only ever
   // created in direct response to the user proposing or joining

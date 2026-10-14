@@ -80,6 +80,8 @@ export interface LayerPrefs {
   size: "S" | "M" | "L";
   opacity: number; // 0.7 - 1.0
   collapsed: { private: boolean; shared: boolean };
+  /** Free-dragged position in viewport pixels, overriding `dock` once set. Undefined means "use the dock preset" — the default until the user first drags the panel. */
+  posPx?: { x: number; y: number };
 }
 
 // --- Template schema (docs/SPEC-VENNMEET.md, "Templates") ---
