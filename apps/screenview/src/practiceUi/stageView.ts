@@ -1,5 +1,5 @@
 import type { StarPart } from "@screenview/shared";
-import { computeStage, mountShadowLayer, type ShadowLayer } from "@overlay/shared";
+import { applyPanelPosition, attachDragHandle, computeStage, mountShadowLayer, type ShadowLayer } from "@overlay/shared";
 import {
   COVERED_COLOR,
   PANEL_BG,
@@ -16,6 +16,8 @@ const PART_LABEL: Record<StarPart, string> = {
   action: "Action",
   result: "Result",
 };
+
+const STAGE_POS_KEY = "screenview.stagePanelPos";
 
 export interface StageView {
   /** Lights a block — "blocks change state only, no text appears while the candidate is speaking" (SPEC). */
@@ -84,12 +86,33 @@ export function mountStageView(): StageView {
       cursor: pointer;
     }
     .sv-done-btn:hover { background: #3a3a3d; }
+    .sv-stage-drag-handle {
+      pointer-events: auto;
+      position: absolute;
+      top: -10px;
+      left: -10px;
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: ${PANEL_BG};
+      color: ${TEXT_COLOR};
+      font-size: 12px;
+      cursor: grab;
+      touch-action: none;
+    }
   `;
   layer.root.appendChild(style);
 
   const panel = document.createElement("div");
   panel.className = "sv-stage-panel";
   layer.layerEl.appendChild(panel);
+
+  const dragHandle = document.createElement("button");
+  dragHandle.className = "sv-stage-drag-handle";
+  dragHandle.textContent = "⠿";
+  dragHandle.title = "Drag to move";
+  panel.appendChild(dragHandle);
 
   const numbers = document.createElement("div");
   numbers.className = "sv-numbers";
@@ -125,7 +148,10 @@ export function mountStageView(): StageView {
     blockEls[part] = { el, notes };
   }
 
+  let usingCustomPos = false;
+
   function reposition() {
+    if (usingCustomPos) return; // the user has dragged it; stop auto-placing on resize
     const stage = computeStage(window.innerWidth, window.innerHeight);
     panel.style.left = `${stage.x}px`;
     panel.style.top = `${stage.y + stage.h + 12}px`;
@@ -133,6 +159,23 @@ export function mountStageView(): StageView {
   }
   reposition();
   window.addEventListener("resize", reposition);
+
+  // Free drag-to-reposition, same pattern as apps/vennmeet's private
+  // layer — persisted in chrome.storage.local so it stays put next
+  // session. Dropping the stage-relative width once dragged lets the
+  // panel size itself to its own content instead of a now-unrelated band.
+  const dragCtl = attachDragHandle(panel, dragHandle, (pos) => {
+    usingCustomPos = true;
+    panel.style.width = "auto";
+    void chrome.storage.local.set({ [STAGE_POS_KEY]: pos });
+  });
+  void chrome.storage.local.get(STAGE_POS_KEY).then((result) => {
+    const stored = result[STAGE_POS_KEY] as { x: number; y: number } | undefined;
+    if (!stored) return;
+    usingCustomPos = true;
+    panel.style.width = "auto";
+    applyPanelPosition(panel, stored);
+  });
 
   return {
     setCovered(part, covered) {
@@ -152,6 +195,7 @@ export function mountStageView(): StageView {
     },
     destroy() {
       window.removeEventListener("resize", reposition);
+      dragCtl.destroy();
       layer.destroy();
     },
   };

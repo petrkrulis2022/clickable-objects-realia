@@ -1,6 +1,8 @@
 import type { InterviewDeck } from "@screenview/shared";
-import { mountShadowLayer, type ShadowLayer } from "@overlay/shared";
+import { applyPanelPosition, attachDragHandle, mountShadowLayer, type ShadowLayer } from "@overlay/shared";
 import { DOCK_BOTTOM_PX, DOCK_LEFT_PX, DOCK_WIDTH_PX, PANEL_BG, PANEL_RADIUS_PX, PANEL_SHADOW, SYSTEM_FONT_STACK, TEXT_COLOR } from "../content/design";
+
+const DECK_POS_KEY = "screenview.deckPanelPos";
 
 export interface DeckView {
   setHidden(hidden: boolean): void;
@@ -41,12 +43,33 @@ export function mountDeckView(deck: InterviewDeck): DeckView {
     .sv-deck-competency { font-size: 12px; font-weight: 600; }
     .sv-deck-story { font-size: 12px; opacity: 0.75; }
     .sv-deck-gap { opacity: 0.5; font-style: italic; }
+    .sv-deck-drag-handle {
+      pointer-events: auto;
+      position: absolute;
+      top: -10px;
+      left: -10px;
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: ${PANEL_BG};
+      color: ${TEXT_COLOR};
+      font-size: 12px;
+      cursor: grab;
+      touch-action: none;
+    }
   `;
   layer.root.appendChild(style);
 
   const panel = document.createElement("div");
   panel.className = "sv-deck-panel";
   layer.layerEl.appendChild(panel);
+
+  const dragHandle = document.createElement("button");
+  dragHandle.className = "sv-deck-drag-handle";
+  dragHandle.textContent = "⠿";
+  dragHandle.title = "Drag to move";
+  panel.appendChild(dragHandle);
 
   for (const card of deck.cards) {
     const el = document.createElement("div");
@@ -61,11 +84,25 @@ export function mountDeckView(deck: InterviewDeck): DeckView {
     panel.appendChild(el);
   }
 
+  // Free drag-to-reposition, same pattern as the practice stage and
+  // apps/vennmeet's private layer — persisted in chrome.storage.local
+  // (not network; interview mode's isolation guarantee only forbids
+  // fetch/WebSocket/getUserMedia, not the local storage API it already
+  // uses to read the deck itself).
+  const dragCtl = attachDragHandle(panel, dragHandle, (pos) => {
+    void chrome.storage.local.set({ [DECK_POS_KEY]: pos });
+  });
+  void chrome.storage.local.get(DECK_POS_KEY).then((result) => {
+    const stored = result[DECK_POS_KEY] as { x: number; y: number } | undefined;
+    if (stored) applyPanelPosition(panel, stored);
+  });
+
   return {
     setHidden(hidden) {
       panel.style.display = hidden ? "none" : "flex";
     },
     destroy() {
+      dragCtl.destroy();
       layer.destroy();
     },
   };
