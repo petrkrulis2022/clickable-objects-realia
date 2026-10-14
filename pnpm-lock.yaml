@@ -14,6 +14,9 @@ importers:
 
   apps/realia:
     dependencies:
+      '@overlay/shared':
+        specifier: workspace:*
+        version: link:../../packages/overlay-shared
       '@realia/shared':
         specifier: workspace:*
         version: link:../../packages/realia-shared

@@ -8,6 +8,7 @@
     "dev": "vite build --watch"
   },
   "dependencies": {
+    "@overlay/shared": "workspace:*",
     "@realia/shared": "workspace:*"
   },
   "devDependencies": {

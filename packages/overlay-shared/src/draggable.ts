@@ -30,8 +30,23 @@ export function applyPanelPosition(panel: HTMLElement, pos: Pos): void {
   panel.style.transform = "none";
 }
 
-/** Wires pointerdown/move/up on `handle` to drag `panel`. Calls `onMoved` once per drag, on release, with the final pixel position — the caller decides how (or whether) to persist it. */
-export function attachDragHandle(panel: HTMLElement, handle: HTMLElement, onMoved: (pos: Pos) => void): DragHandleController {
+/**
+ * Wires pointerdown/move/up on `handle` to drag `panel`. Calls
+ * `onMoved` once per drag, on release, with the final pixel position
+ * — the caller decides how (or whether) to persist it.
+ *
+ * `apply` defaults to `applyPanelPosition`, which also zeroes
+ * `transform` — fine for a panel that only ever used transform to
+ * cancel a centering preset, but wrong for one (Realia's teacher
+ * panel) that uses transform for its own collapse animation. Pass a
+ * custom `apply` that sets left/top only when that's the case.
+ */
+export function attachDragHandle(
+  panel: HTMLElement,
+  handle: HTMLElement,
+  onMoved: (pos: Pos) => void,
+  apply: (panel: HTMLElement, pos: Pos) => void = applyPanelPosition,
+): DragHandleController {
   let offset: Pos | null = null;
 
   function onPointerDown(e: PointerEvent) {
@@ -42,12 +57,12 @@ export function attachDragHandle(panel: HTMLElement, handle: HTMLElement, onMove
   }
   function onPointerMove(e: PointerEvent) {
     if (!offset) return;
-    applyPanelPosition(panel, clampToViewport(panel, e.clientX - offset.x, e.clientY - offset.y));
+    apply(panel, clampToViewport(panel, e.clientX - offset.x, e.clientY - offset.y));
   }
   function endDrag(e: PointerEvent) {
     if (!offset) return;
     const pos = clampToViewport(panel, e.clientX - offset.x, e.clientY - offset.y);
-    applyPanelPosition(panel, pos);
+    apply(panel, pos);
     offset = null;
     handle.releasePointerCapture(e.pointerId);
     onMoved(pos);

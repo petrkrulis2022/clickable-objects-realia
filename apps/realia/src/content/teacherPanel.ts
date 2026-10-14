@@ -1,6 +1,9 @@
 import type { LessonPack } from "@realia/shared";
+import { attachDragHandle, type Pos } from "@overlay/shared";
 import { SYSTEM_FONT_STACK, TEACHER_PANEL_BG, TEACHER_PANEL_WIDTH_PX, Z_INDEX_MAX } from "./design";
 import type { OverlayHandle } from "./overlay";
+
+const PANEL_POS_KEY = "realia.teacherPanelPos";
 
 const CSS = `
   .co-panel {
@@ -22,6 +25,26 @@ const CSS = `
     transition: transform 160ms ease-out;
   }
   .co-panel.co-collapsed { transform: translateX(calc(-100% + 14px)); }
+  .co-panel.co-floating {
+    bottom: auto;
+    height: auto;
+    max-height: 70vh;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  }
+  .co-panel-header { display: flex; align-items: center; gap: 8px; }
+  .co-drag-handle {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    border-radius: 5px;
+    border: none;
+    background: rgba(255,255,255,0.08);
+    color: #ccc;
+    font-size: 12px;
+    cursor: grab;
+    touch-action: none;
+  }
   .co-panel h2 { margin: 0; font-size: 13px; font-weight: 600; color: #9a9a9a; text-transform: uppercase; letter-spacing: 0.04em; }
   .co-panel .co-timer { font-size: 13px; color: #9a9a9a; }
   .co-panel .co-prompt { font-size: 18px; font-weight: 600; line-height: 1.3; }
@@ -86,6 +109,7 @@ export function attachTeacherPanel(opts: TeacherPanelOptions): TeacherPanelContr
   const { overlay, pack, onSetActivity, onMark } = opts;
   let currentIndex = opts.initialItemIndex;
   let collapsed = false;
+  let floating = false;
   const startedAt = Date.now();
 
   const style = document.createElement("style");
@@ -96,9 +120,19 @@ export function attachTeacherPanel(opts: TeacherPanelOptions): TeacherPanelContr
   panel.className = "co-panel";
   overlay.root.appendChild(panel);
 
+  const headerRow = document.createElement("div");
+  headerRow.className = "co-panel-header";
+  panel.appendChild(headerRow);
+
+  const dragHandle = document.createElement("button");
+  dragHandle.className = "co-drag-handle";
+  dragHandle.textContent = "⠿";
+  dragHandle.title = "Drag to move";
+  headerRow.appendChild(dragHandle);
+
   const header = document.createElement("h2");
   header.textContent = pack.title;
-  panel.appendChild(header);
+  headerRow.appendChild(header);
 
   const timerEl = document.createElement("div");
   timerEl.className = "co-timer";
@@ -146,8 +180,43 @@ export function attachTeacherPanel(opts: TeacherPanelOptions): TeacherPanelContr
   function setCollapsed(next: boolean) {
     collapsed = next;
     panel.classList.toggle("co-collapsed", collapsed);
-    overlay.setLeftInset(collapsed ? 0 : TEACHER_PANEL_WIDTH_PX);
+    overlay.setLeftInset(collapsed || floating ? 0 : TEACHER_PANEL_WIDTH_PX);
   }
+
+  /**
+   * "Dragged anywhere on screen" (on request, not in docs/PRD.md) —
+   * once the panel leaves its left-edge dock, the stage should
+   * reclaim that reserved width rather than leaving a permanent gap
+   * nothing occupies. Idempotent: called from the drag-position apply
+   * function, which fires on every pointermove, not just once.
+   */
+  function makeFloating() {
+    if (floating) return;
+    floating = true;
+    panel.classList.add("co-floating");
+    overlay.setLeftInset(0);
+  }
+
+  function applyFloatingPosition(el: HTMLElement, pos: Pos) {
+    makeFloating();
+    el.style.left = `${pos.x}px`;
+    el.style.top = `${pos.y}px`;
+    el.style.right = "auto";
+    el.style.bottom = "auto";
+    // Deliberately not touching transform — co-collapsed's slide
+    // animation depends on it, unlike VennMeet/ScreenView's panels.
+  }
+
+  const dragCtl = attachDragHandle(
+    panel,
+    dragHandle,
+    (pos) => void chrome.storage.local.set({ [PANEL_POS_KEY]: pos }),
+    applyFloatingPosition,
+  );
+  void chrome.storage.local.get(PANEL_POS_KEY).then((result) => {
+    const stored = result[PANEL_POS_KEY] as Pos | undefined;
+    if (stored) applyFloatingPosition(panel, stored);
+  });
 
   function render() {
     const item = pack.items[currentIndex];
@@ -220,6 +289,7 @@ export function attachTeacherPanel(opts: TeacherPanelOptions): TeacherPanelContr
   return {
     destroy: () => {
       window.removeEventListener("keydown", onKeydown);
+      dragCtl.destroy();
       clearInterval(timerId);
       overlay.setLeftInset(0);
       panel.remove();
