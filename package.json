@@ -13,7 +13,9 @@
     "dev:vennmeet-relay": "pnpm --filter @vennmeet/relay dev",
     "build:vennmeet-relay": "pnpm --filter @vennmeet/relay build",
     "dev:screenview-practice": "pnpm --filter @screenview/practice dev",
-    "build:screenview-practice": "pnpm --filter @screenview/practice build"
+    "build:screenview-practice": "pnpm --filter @screenview/practice build",
+    "dev:meeting-assist": "pnpm --filter @assist/service dev",
+    "build:meeting-assist": "pnpm --filter @assist/service build"
   },
   "devDependencies": {
     "typescript": "^5.8.2"
