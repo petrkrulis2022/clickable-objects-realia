@@ -516,6 +516,119 @@ Forbidden: showing, storing, caching or sharing the textbook image; browser spee
 
 Acceptance for the whole build: photograph two real coursebook pages, fill in the form, and get a pack and a plan a teacher could run without editing. At least one generated activity is a sort or a gap, not a place.
 
+## Build sequence: prompts 13 to 15
+
+Run them in number order, one at a time, committing between each. Prompt 13
+moves role filtering onto the relay; prompt 14 reuses that same filter, so
+running 14 first means building it twice. Prompt 15 is independent and can go
+anywhere, but it is the smallest, so it goes last.
+
+If a prompt produces more than it was asked for, revert and re-run it with the
+extra work named and forbidden.
+
+**13. Two private layers: the information gap**
+
+```text
+Make `visibleTo` real end to end, then ship one activity that proves it.
+
+Today `visibleTo` is a field the renderer respects. Move the decision to the
+relay: a client receives an object only if its role is listed in that object's
+`visibleTo`. Objects it cannot see are absent from the patch, not present and
+hidden.
+
+Add a test that connects a student socket, logs every frame it receives, runs a
+full pack end to end, and asserts that no object marked teacher-only ever
+appears in any of those frames. Make the test fail by planting a leak before you
+trust it.
+
+Then add pack item kind `infogap`. Do not name it `gap`: section 12 already uses
+`gap` for fill-in-the-blank items, and these are different mechanics.
+
+An infogap item carries two object sets, one visibleTo ['teacher'] and one
+visibleTo ['student'], plus shared zones both roles can see and drag into. The
+teacher holds a reference arrangement; the student holds loose objects; neither
+sees the other's set. The student places objects into the shared zones from the
+teacher's description alone. When every placement matches the reference, the
+item completes and both sides see the same stage for the first time. That reveal
+is the whole point of the activity, so animate it: all objects, 400ms, at once.
+
+For infogap items the 8-object cap from section 12 applies per role view, not
+per item, because neither person ever sees more than their own set. Update the
+validator to match, and leave the cap unchanged for every other kind.
+
+Build exactly one infogap item in the demo pack: a six-slot weekly timetable,
+the filled version on the teacher's layer and six subject cards on the
+student's.
+
+Do not build: a second infogap item, an editor for it, or role swapping. One
+item, proven, then stop.
+
+Acceptance: two browsers, two roles; neither console holds the other's objects;
+the student can complete the timetable from speech alone; the reveal fires once
+and only on a full match.
+```
+
+**14. The plan strip (teacher-private)**
+
+```text
+Add a teacher-only plan strip: 280px wide, pinned to the left edge of the
+teacher's viewport, outside the 16:9 stage. It is not a stage object and must
+not use stage coordinates.
+
+It renders one row per item in the loaded pack: the item's prompt, its planned
+minutes, and a progress dot. The current item's row is highlighted. Tapping any
+row loads that item onto the shared layer through the existing activity runner,
+the same code path as the `n` key, not a second one.
+
+If pack items do not yet carry planned minutes, add the field to the format and
+have the generator emit it. A stage with no estimate renders without a time
+rather than guessing one.
+
+Above the rows: elapsed lesson time and the planned time for the current stage.
+When elapsed runs more than two minutes past planned, that row's time turns
+amber. No sound, no modal, no notification. One colour change.
+
+Privacy goes through the role filter built in prompt 13: plan state must not be
+included in any frame sent to a socket whose role is 'student'. Reuse that
+prompt's logging-socket test, asserting that no item prompt string ever reaches
+the student.
+
+Do not build: editing the plan here, reordering stages, a timer the student can
+see, or a per-stage notes field.
+
+Acceptance: the teacher can jump to any stage in one tap; a student client
+logging every received frame contains no plan text; the layer hotkey hides the
+strip along with everything else.
+```
+
+**15. The lost button**
+
+```text
+Add a student-only control: one circle in the bottom-right of the student's
+viewport, outside the stage, marked with a question mark.
+
+Tapping it sets a room flag for 20 seconds. For those 20 seconds the teacher's
+layer shows a soft amber ring around the stage edge. Nothing else happens: no
+sound, no text, no confirmation. Tapping again while it is active does nothing.
+
+The student must never see any sign of whether the teacher noticed, and the
+teacher must never see a count of presses. Either one turns a safety valve into
+a scoreboard, and a student who thinks they are being counted stops pressing it,
+which costs you the only honest signal in the lesson.
+
+The flag is ordinary room state and travels the existing rev and patch path, not
+a side channel, so it lands in the append-only event log like everything else.
+It must not surface in the post-lesson report or in any figure shown to either
+person.
+
+Do not build: a reason picker, a chat message, a 'your teacher has seen this'
+confirmation, or a per-student history.
+
+Acceptance: the student taps and the teacher's edge glows within 300ms and fades
+at 20 seconds; nothing about the press appears in the report; the student's own
+UI is identical before and after the teacher reacts.
+```
+
 ---
 
 If a prompt produces more than it was asked for, revert and re-run it with the extra work named and forbidden. Scope creep in a two-week build is the failure mode, not bugs.
