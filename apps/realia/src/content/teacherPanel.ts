@@ -48,6 +48,9 @@ const CSS = `
   .co-panel h2 { margin: 0; font-size: 13px; font-weight: 600; color: #9a9a9a; text-transform: uppercase; letter-spacing: 0.04em; }
   .co-panel .co-timer { font-size: 13px; color: #9a9a9a; }
   .co-panel .co-prompt { font-size: 18px; font-weight: 600; line-height: 1.3; }
+  .co-panel .co-source { font-size: 12px; color: #9a9a9a; text-transform: uppercase; letter-spacing: 0.04em; }
+  .co-panel .co-key { margin: 0; padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,0.06); font-size: 13px; line-height: 1.4; color: #d8d8d8; list-style: none; max-height: 30vh; overflow-y: auto; }
+  .co-panel .co-key:empty { display: none; }
   .co-panel .co-nav { display: flex; gap: 8px; }
   .co-panel button {
     font: inherit;
@@ -85,6 +88,23 @@ const CSS = `
     font-size: 11px;
   }
 `;
+
+function isEditable(el: Element | null): boolean {
+  if (!el) return false;
+  if (el instanceof HTMLElement && el.isContentEditable) return true;
+  const tag = el.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+}
+
+/** True if the key went to something the user is typing into. */
+function isTyping(e: Pick<KeyboardEvent, "composedPath">): boolean {
+  const origin = e.composedPath()[0];
+  if (origin instanceof Element && isEditable(origin)) return true;
+  // activeElement can be a shadow host; follow it down to the real focus.
+  let active: Element | null = document.activeElement;
+  while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+  return isEditable(active);
+}
 
 export interface TeacherPanelOptions {
   overlay: OverlayHandle;
@@ -138,9 +158,21 @@ export function attachTeacherPanel(opts: TeacherPanelOptions): TeacherPanelContr
   timerEl.className = "co-timer";
   panel.appendChild(timerEl);
 
+  const sourceEl = document.createElement("div");
+  sourceEl.className = "co-source";
+  panel.appendChild(sourceEl);
+
   const promptEl = document.createElement("div");
   promptEl.className = "co-prompt";
   panel.appendChild(promptEl);
+
+  // Teacher-only: the current activity's answers, so the key is in front of her, not in another tab.
+  const keyEl = document.createElement("ul");
+  keyEl.className = "co-key";
+  panel.appendChild(keyEl);
+
+  const objectLabel = new Map(pack.draggables.map((d) => [d.id, d.label]));
+  const zoneLabel = new Map(pack.zones.map((z) => [z.id, z.label]));
 
   const nav = document.createElement("div");
   nav.className = "co-nav";
@@ -166,7 +198,8 @@ export function attachTeacherPanel(opts: TeacherPanelOptions): TeacherPanelContr
   list.className = "co-items";
   const itemEls: HTMLLIElement[] = pack.items.map((item, i) => {
     const li = document.createElement("li");
-    li.textContent = `${i + 1}. ${item.prompt}`;
+    const text = item.prompt.length > 90 ? `${item.prompt.slice(0, 87)}…` : item.prompt;
+    li.textContent = `${i + 1}. ${item.source ? `${item.source} · ` : ""}${text}`;
     list.appendChild(li);
     return li;
   });
@@ -221,6 +254,22 @@ export function attachTeacherPanel(opts: TeacherPanelOptions): TeacherPanelContr
   function render() {
     const item = pack.items[currentIndex];
     promptEl.textContent = item ? `${currentIndex + 1}/${pack.items.length}: ${item.prompt}` : "";
+    sourceEl.textContent = item && item.kind !== "place" ? `${item.kind}${item.source ? ` · ${item.source}` : ""}` : "";
+    keyEl.replaceChildren(
+      ...(item && item.kind !== "place"
+        ? item.pairs.map((p) => {
+            const li = document.createElement("li");
+            const zone = zoneLabel.get(p.zoneId) ?? p.zoneId;
+            li.textContent = `${objectLabel.get(p.objectId) ?? p.objectId} → ${item.kind === "gap" ? `[${zone}]` : zone}`;
+            return li;
+          })
+        : []),
+      ...(item?.distractors?.length
+        ? [Object.assign(document.createElement("li"), {
+            textContent: `wrong: ${item.distractors.map((d) => objectLabel.get(d) ?? d).join(", ")}`,
+          })]
+        : []),
+    );
     prevBtn.disabled = currentIndex <= 0;
     nextBtn.disabled = currentIndex >= pack.items.length - 1;
     itemEls.forEach((li, i) => li.classList.toggle("co-current", i === currentIndex));
@@ -257,6 +306,13 @@ export function attachTeacherPanel(opts: TeacherPanelOptions): TeacherPanelContr
   // matter where the pointer is.
   function onKeydown(e: KeyboardEvent) {
     if (e.key === " ") return;
+    // Never steal keys while someone is typing — Meet's chat, a caption
+    // box, anything editable. This reads only generic browser state
+    // (the focused element's tag and isContentEditable), never Meet's
+    // own markup, so it fits the no-host-DOM rule and works unchanged
+    // on any call platform. Modified keys (Ctrl+1 switches tabs) are
+    // left alone too.
+    if (e.ctrlKey || e.metaKey || e.altKey || isTyping(e)) return;
     switch (e.key) {
       case "n":
         next();

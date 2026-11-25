@@ -17,9 +17,8 @@ export interface DragControllerOptions {
   overlay: OverlayHandle;
   /** Mutable model, shared with whatever applies incoming server patches. */
   objects: StageObject[];
-  sentenceTemplate: string;
-  /** zone id -> the label of the thing it's anchored to, for sentence building */
-  zoneAnchorLabel: Record<string, string>;
+  /** The room's pack's sentence template and zone id -> anchor label, read at drop time (the pack loads after joining). */
+  getSentenceContext: () => { template: string; zoneAnchorLabel: Record<string, string> };
   sendMove: (id: string, pos: Vec) => void;
   sendDrop: (id: string, zoneId: string | null) => void;
 }
@@ -51,7 +50,7 @@ function centerPx(stage: StageRect, obj: StageObject) {
  * never decides correct/incorrect itself.
  */
 export function attachDragController(opts: DragControllerOptions): DragController {
-  const { overlay, objects, sentenceTemplate, zoneAnchorLabel, sendMove, sendDrop } = opts;
+  const { overlay, objects, getSentenceContext, sendMove, sendDrop } = opts;
 
   let myRole: Role | null = null;
   const pendingVerdicts = new Map<string, { zoneId: string; correct: boolean }>();
@@ -104,8 +103,12 @@ export function attachDragController(opts: DragControllerOptions): DragControlle
     lastMoveSentAt = 0;
     el.classList.add("co-held");
 
+    // The original place zones appear while dragging, as they always
+    // have. Bins and slots are always visible and are never
+    // highlighted: lighting up the zones that accept this object would
+    // hand the student the answer to a sort, gap or match.
     const acceptingZoneIds = new Set(
-      getZones().filter((z) => z.accepts.includes(id)).map((z) => z.id),
+      getZones().filter((z) => !z.variant && z.accepts.includes(id)).map((z) => z.id),
     );
     overlay.setZoneHighlight(acceptingZoneIds);
     overlay.setSentence(null);
@@ -168,7 +171,11 @@ export function attachDragController(opts: DragControllerOptions): DragControlle
     // zone is for the relay to decide (msg 'verdict', handled below).
     const stage = overlay.getStage();
     const thresholdPx = DROP_THRESHOLD_STAGE_WIDTH_FRACTION * stage.w;
-    const zoneCandidates = getZones().map((z) => ({ id: z.id, centerPx: centerPx(stage, z) }));
+    const zoneCandidates = getZones().map((z) => ({
+      id: z.id,
+      centerPx: centerPx(stage, z),
+      ...(z.variant ? { rectPx: { ...stageToPagePx(stage, z.pos), w: z.size.w * stage.w, h: z.size.h * stage.h } } : {}),
+    }));
     const nearestZoneId = findNearestZone(centerPx(stage, obj), zoneCandidates, thresholdPx);
 
     sendMove(id, obj.pos); // flush the final live position ahead of the drop intent
@@ -216,13 +223,7 @@ export function attachDragController(opts: DragControllerOptions): DragControlle
         overlay.setObjects(objects);
         pulse(el);
         const zone = getZones().find((z) => z.id === verdict.zoneId);
-        if (zone) {
-          const sentence = sentenceTemplate
-            .replace("{object}", incoming.label)
-            .replace("{relation}", zone.relation)
-            .replace("{anchor}", zoneAnchorLabel[zone.id] ?? zone.relation);
-          overlay.setSentence(sentence);
-        }
+        if (zone) overlay.setSentence(correctPlacementText(zone, incoming));
       });
     } else {
       animateMove(
@@ -239,6 +240,22 @@ export function attachDragController(opts: DragControllerOptions): DragControlle
         true,
       );
     }
+  }
+
+  /**
+   * What appears under the stage after a correct placement: a place
+   * zone builds its sentence from the pack's template, exactly as
+   * before ("The keys are under the table."); a sort, gap or match
+   * zone shows its activity's feedback line, if it has one.
+   */
+  function correctPlacementText(zone: Zone, placed: StageObject): string | null {
+    if (zone.feedback) return zone.feedback;
+    const { template, zoneAnchorLabel } = getSentenceContext();
+    if (!zone.relation || !template) return null;
+    return template
+      .replace("{object}", placed.label)
+      .replace("{relation}", zone.relation)
+      .replace("{anchor}", zoneAnchorLabel[zone.id] ?? zone.relation);
   }
 
   function applyRemotePatch(changed: StageObject[], removed: string[]) {

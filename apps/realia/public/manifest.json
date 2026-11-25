@@ -4,7 +4,7 @@
   "version": "0.0.1",
   "description": "Shared clickable objects for online English lessons over Google Meet.",
   "permissions": ["storage"],
-  "host_permissions": ["https://meet.google.com/*"],
+  "host_permissions": ["https://meet.google.com/*", "http://localhost:8787/*", "http://localhost:8790/*"],
   "action": {
     "default_popup": "popup.html"
   },

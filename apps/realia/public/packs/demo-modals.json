@@ -1,0 +1,209 @@
+{
+  "id": "demo-modals",
+  "title": "Demo: modals of obligation (sort, gap, match)",
+  "translationLang": "cs",
+  "scenery": [],
+  "backdrops": {},
+  "sentenceTemplate": "",
+  "draggables": [
+    {
+      "id": "mustnt",
+      "label": "mustn't"
+    },
+    {
+      "id": "cant",
+      "label": "can't"
+    },
+    {
+      "id": "dont-have-to",
+      "label": "don't have to"
+    },
+    {
+      "id": "neednt",
+      "label": "needn't"
+    },
+    {
+      "id": "must",
+      "label": "must"
+    },
+    {
+      "id": "must-2",
+      "label": "must"
+    },
+    {
+      "id": "have-to",
+      "label": "have to"
+    },
+    {
+      "id": "advice-lie-down",
+      "label": "You should lie down."
+    },
+    {
+      "id": "advice-umbrella",
+      "label": "Take an umbrella."
+    },
+    {
+      "id": "advice-run",
+      "label": "You'd better run!"
+    },
+    {
+      "id": "must-to",
+      "label": "must to"
+    },
+    {
+      "id": "dont-must",
+      "label": "don't must"
+    }
+  ],
+  "zones": [
+    {
+      "id": "bin-forbidden",
+      "label": "forbidden"
+    },
+    {
+      "id": "bin-not-necessary",
+      "label": "not necessary"
+    },
+    {
+      "id": "bin-necessary",
+      "label": "necessary"
+    },
+    {
+      "id": "gap-1",
+      "label": "1"
+    },
+    {
+      "id": "gap-2",
+      "label": "2"
+    },
+    {
+      "id": "gap-3",
+      "label": "3"
+    },
+    {
+      "id": "gap-4",
+      "label": "4"
+    },
+    {
+      "id": "match-headache",
+      "label": "I've got a terrible headache."
+    },
+    {
+      "id": "match-rain",
+      "label": "It's pouring with rain outside."
+    },
+    {
+      "id": "match-bus",
+      "label": "My bus leaves in two minutes!"
+    }
+  ],
+  "cards": [
+    {
+      "id": "c-obligation",
+      "word": "obligation",
+      "translation": "povinnost",
+      "emoji": "📋",
+      "audio": null
+    },
+    {
+      "id": "c-forbidden",
+      "word": "forbidden",
+      "translation": "zakázaný",
+      "emoji": "🚫",
+      "audio": null
+    }
+  ],
+  "items": [
+    {
+      "id": "sort-meaning",
+      "kind": "sort",
+      "source": "demo",
+      "prompt": "Forbidden, not necessary, or necessary? Sort the verbs.",
+      "feedback": "Yes, that's where it belongs.",
+      "pairs": [
+        {
+          "objectId": "mustnt",
+          "zoneId": "bin-forbidden"
+        },
+        {
+          "objectId": "cant",
+          "zoneId": "bin-forbidden"
+        },
+        {
+          "objectId": "dont-have-to",
+          "zoneId": "bin-not-necessary"
+        },
+        {
+          "objectId": "neednt",
+          "zoneId": "bin-not-necessary"
+        },
+        {
+          "objectId": "must",
+          "zoneId": "bin-necessary"
+        },
+        {
+          "objectId": "have-to",
+          "zoneId": "bin-necessary"
+        }
+      ]
+    },
+    {
+      "id": "gap-school-rules",
+      "kind": "gap",
+      "source": "demo",
+      "prompt": "At my school we [1] wear a uniform, and we [2] bring phones into exams. On Fridays we [3] wear it, because it's optional. Before a trip, parents [4] sign a form.",
+      "feedback": "Good.",
+      "pairs": [
+        {
+          "objectId": "must",
+          "zoneId": "gap-1"
+        },
+        {
+          "objectId": "must-2",
+          "zoneId": "gap-1"
+        },
+        {
+          "objectId": "mustnt",
+          "zoneId": "gap-2"
+        },
+        {
+          "objectId": "dont-have-to",
+          "zoneId": "gap-3"
+        },
+        {
+          "objectId": "must",
+          "zoneId": "gap-4"
+        },
+        {
+          "objectId": "must-2",
+          "zoneId": "gap-4"
+        }
+      ],
+      "distractors": [
+        "must-to",
+        "dont-must"
+      ]
+    },
+    {
+      "id": "match-advice",
+      "kind": "match",
+      "source": "demo",
+      "prompt": "Match each problem with the best advice.",
+      "feedback": "That fits.",
+      "pairs": [
+        {
+          "objectId": "advice-lie-down",
+          "zoneId": "match-headache"
+        },
+        {
+          "objectId": "advice-umbrella",
+          "zoneId": "match-rain"
+        },
+        {
+          "objectId": "advice-run",
+          "zoneId": "match-bus"
+        }
+      ]
+    }
+  ]
+}

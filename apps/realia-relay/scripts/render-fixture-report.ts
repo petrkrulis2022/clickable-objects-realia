@@ -7,8 +7,13 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { LessonEvent } from "@realia/shared";
-import { loadPack } from "../src/packs.ts";
+import { createPackStore } from "../src/packs.ts";
 import { buildSeed, renderReport } from "../src/report.ts";
+
+const packs = createPackStore({
+  bundled: join(import.meta.dirname, "..", "..", "realia", "public", "packs"),
+  custom: join(import.meta.dirname, "..", "custom-packs"),
+});
 
 const FIXTURE_PATH = join(import.meta.dirname, "..", "fixtures", "sample-lesson.jsonl");
 const outDir = process.argv[2] ?? "/tmp";
@@ -18,7 +23,7 @@ const events: LessonEvent[] = readFileSync(FIXTURE_PATH, "utf8")
   .split("\n")
   .map((line) => JSON.parse(line));
 
-const pack = loadPack("a2-prepositions-place");
+const pack = packs.load("a2-prepositions-place");
 const html = renderReport({ code: "FIXTURE", events, pack });
 const seed = buildSeed({ code: "FIXTURE", events, pack });
 

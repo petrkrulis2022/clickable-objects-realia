@@ -1,5 +1,6 @@
 import type { Card, StageObject } from "@realia/shared";
 import type { OverlayHandle } from "./overlay";
+import { audioUrl } from "./pack";
 
 export interface CardsControllerOptions {
   overlay: OverlayHandle;
@@ -29,8 +30,15 @@ export function attachCardsController(opts: CardsControllerOptions): CardsContro
     return obj?.kind === "card" ? (obj as Card) : undefined;
   }
 
+  /**
+   * Plays the card's pre-generated recording. A card with no recording
+   * (audio: null) plays nothing — it is marked as silent instead. There
+   * is deliberately no speech-synthesis fallback: a learner copies the
+   * model voice, and a robotic one teaches bad pronunciation.
+   */
   function playAudio(card: Card, speed: "normal" | "slow") {
-    const audio = new Audio(chrome.runtime.getURL(card.audio[speed]));
+    if (!card.audio) return;
+    const audio = new Audio(audioUrl(card.audio, speed));
     audio.play().catch(() => {
       /* blocked by autoplay policy — shouldn't happen off a direct tap gesture */
     });

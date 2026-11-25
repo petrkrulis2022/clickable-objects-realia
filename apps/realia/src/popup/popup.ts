@@ -1,3 +1,5 @@
+import { getSelectedPackId, RELAY_HTTP_URL } from "../content/pack";
+
 const STORAGE_KEY = "roomCode";
 
 // Ambiguous characters (I, O, 0, 1) left out so a code is easy to read aloud.
@@ -36,6 +38,20 @@ joinBtn.addEventListener("click", () => {
   if (!code) return;
   chrome.storage.local.set({ [STORAGE_KEY]: code }, () => render(code));
 });
+
+// Which lesson a room created from here will play — so the teacher can check before sharing the code.
+const lessonEl = document.getElementById("lesson");
+void (async () => {
+  const packId = await getSelectedPackId();
+  let title = packId;
+  try {
+    const res = await fetch(`${RELAY_HTTP_URL}/packs/${encodeURIComponent(packId)}`);
+    if (res.ok) title = ((await res.json()) as { title?: string }).title ?? packId;
+  } catch {
+    /* relay not running: show the id */
+  }
+  if (lessonEl) lessonEl.textContent = `Lesson for a new room: ${title}`;
+})();
 
 const planBtn = document.getElementById("plan-btn");
 planBtn?.addEventListener("click", () => chrome.runtime.openOptionsPage());

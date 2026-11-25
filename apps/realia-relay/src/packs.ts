@@ -1,172 +1,182 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Backdrop, Card, LessonPack, PackSceneryItem, StageObject, Vec, Zone } from "@realia/shared";
+import {
+  isValidGeneratedAudioFile,
+  loadValidPack,
+  PACK_ID_RE,
+  PackValidationError,
+  type LessonPack,
+} from "@realia/shared";
 
-// Bundled packs (apps/realia/public/packs) are the single source of
-// truth for the STATIC content shipped with the extension — the
-// teacher's client and the relay resolve the exact same file rather
-// than drifting copies. A generated pack (approved from the AI plan
-// drafter) is different: it exists only at runtime, so it's written
-// here instead, to the relay's own directory, never into the
-// extension's source tree (which the already-loaded unpacked
-// extension couldn't see until a rebuild anyway). The client fetches
-// a generated pack from the relay over HTTP rather than
-// chrome.runtime.getURL, so both sides resolve the identical bytes.
-const PACK_DIR = join(process.cwd(), "..", "realia", "public", "packs");
-const CUSTOM_PACK_DIR = join(process.cwd(), "custom-packs");
+// Bundled packs (apps/realia/public/packs) are the source of truth for
+// the STATIC content shipped with the extension. A generated pack
+// (approved on the options page) exists only at runtime, so it lives
+// in the relay's own directory, together with the mp3s generated for
+// its new words at approval time and the teaching plan the teacher
+// approved it with. Both clients fetch every pack from the relay, so
+// teacher and student always resolve the identical bytes.
+//
+// Every pack is normalised and strictly validated on the way in and
+// on the way out: an invalid pack is never stored and never served.
+//
+// What is stored next to a pack is exactly: the pack JSON, mp3 audio
+// (checked to be mp3), and the plan as text. Never an image — the
+// coursebook photos a pack was generated from never reach the relay.
 
-const packCache = new Map<string, LessonPack>();
-
-export function loadPack(packId: string): LessonPack {
-  const cached = packCache.get(packId);
-  if (cached) return cached;
-
-  const customPath = join(CUSTOM_PACK_DIR, `${packId}.json`);
-  const path = existsSync(customPath) ? customPath : join(PACK_DIR, `${packId}.json`);
-  const pack = JSON.parse(readFileSync(path, "utf8")) as LessonPack;
-  packCache.set(packId, pack);
-  return pack;
+export interface PackDirs {
+  /** apps/realia/public/packs — shipped with the extension, read-only here. */
+  bundled: string;
+  /** Approved generated packs, one JSON file + one directory each. */
+  custom: string;
 }
 
-/** Writes a generated pack to disk and seeds the cache with it, so the very next loadPack() call (from either the client's fetch or the relay's own setActivity handling) sees it immediately. */
-export function saveCustomPack(pack: LessonPack): void {
-  mkdirSync(CUSTOM_PACK_DIR, { recursive: true });
-  writeFileSync(join(CUSTOM_PACK_DIR, `${pack.id}.json`), JSON.stringify(pack, null, 2), "utf8");
-  packCache.set(pack.id, pack);
+export interface PackSummary {
+  id: string;
+  title: string;
+  custom: boolean;
 }
 
-// The pack schema doesn't specify draggable/card tray positions (only
-// scenery has pos/size) or a zone's own size — those are the "starting
-// layout" the runner is responsible for. Fixed, evenly spaced rows
-// keep it predictable lesson to lesson.
-const TRAY_Y = 0.84;
-const TRAY_SIZE = { w: 0.09, h: 0.11 };
-const CARD_Y = 0.03;
-const CARD_SIZE = { w: 0.13, h: 0.13 };
-const ZONE_SIZE = { w: 0.18, h: 0.1 };
-
-function evenlySpacedX(index: number, count: number, itemWidth: number): number {
-  const margin = 0.04;
-  if (count <= 1) return margin;
-  const usable = 1 - margin * 2 - itemWidth;
-  return margin + (usable * index) / (count - 1);
+export interface SavePackInput {
+  pack: unknown;
+  /** file name -> base64 mp3, e.g. { "c-forbidden-normal.mp3": "SUQz..." } */
+  audio?: Record<string, string>;
+  plan?: string;
 }
 
-function centerOf(s: { pos: Vec; size: { w: number; h: number } }): Vec {
-  return { x: s.pos.x + s.size.w / 2, y: s.pos.y + s.size.h / 2 };
-}
+const MAX_AUDIO_FILE_BYTES = 2 * 1024 * 1024;
+const MAX_PLAN_CHARS = 200_000;
 
-// "both" (docs/PRD.md's between_chair_table zone) is the one anchor
-// value that doesn't name a single scenery id. A real multi-anchor
-// system is out of v0 scope, so this is special-cased for the one
-// pack that uses it: the midpoint of the table and the chair.
-function anchorCenter(anchor: string, bySceneryId: Map<string, PackSceneryItem>): Vec {
-  if (anchor === "both") {
-    const table = bySceneryId.get("table");
-    const chair = bySceneryId.get("chair");
-    if (!table || !chair) throw new Error('anchor "both" needs a table and a chair in scenery');
-    const a = centerOf(table);
-    const b = centerOf(chair);
-    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+export class PackStoreError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly problems: string[] = [],
+  ) {
+    super(message);
   }
-  const s = bySceneryId.get(anchor);
-  if (!s) throw new Error(`unknown zone anchor "${anchor}"`);
-  return centerOf(s);
 }
 
-export interface ResolvedItem {
-  objects: StageObject[];
-  /** undefined = keep whatever backdrop is already showing (docs/PRD.md, "Backdrops"). */
-  backdrop: Backdrop | null | undefined;
-  prompt: string;
+/** An mp3 starts with an ID3 tag or an MPEG frame sync. Anything else (an image, say) is refused. */
+function looksLikeMp3(bytes: Buffer): boolean {
+  if (bytes.length < 4) return false;
+  if (bytes.subarray(0, 3).toString("latin1") === "ID3") return true;
+  return bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0;
 }
 
-/**
- * The activity runner (docs/PRD.md, "The activity runner" + "7.
- * Teacher panel and activity runner"): resolves one pack item into a
- * full, fresh object set. Scenery is always present; draggables and
- * cards are always present in a fixed tray, reset to their start
- * position; only the current item's single target zone is live.
- */
-export function resolveItem(pack: LessonPack, itemIndex: number): ResolvedItem {
-  const item = pack.items[itemIndex];
-  if (!item) throw new Error(`item ${itemIndex} out of range for pack "${pack.id}"`);
+export function createPackStore(dirs: PackDirs) {
+  const cache = new Map<string, LessonPack>();
 
-  const bySceneryId = new Map(pack.scenery.map((s) => [s.id, s]));
-  const objects: StageObject[] = [];
-
-  for (const s of pack.scenery) {
-    objects.push({
-      id: s.id,
-      kind: "label",
-      label: s.label,
-      emoji: s.emoji,
-      pos: s.pos,
-      size: s.size,
-      z: 1,
-      draggableBy: "both",
-      visibleTo: "both",
-    });
+  function customJson(id: string) {
+    return join(dirs.custom, `${id}.json`);
+  }
+  function customDir(id: string) {
+    return join(dirs.custom, id);
+  }
+  function assertId(id: string) {
+    if (!PACK_ID_RE.test(id)) throw new PackStoreError(`"${id}" is not a pack id`, 400);
   }
 
-  pack.draggables.forEach((d, i) => {
-    objects.push({
-      id: d.id,
-      kind: "draggable",
-      label: d.label,
-      emoji: d.emoji,
-      pos: { x: evenlySpacedX(i, pack.draggables.length, TRAY_SIZE.w), y: TRAY_Y },
-      size: TRAY_SIZE,
-      z: 2,
-      draggableBy: "both",
-      visibleTo: "both",
-    });
-  });
-
-  pack.cards.forEach((c, i) => {
-    const card: Card = {
-      id: c.id,
-      kind: "card",
-      label: c.word,
-      word: c.word,
-      translation: c.translation,
-      emoji: c.emoji,
-      // Matches the file names produced by scripts/generate-audio.ts
-      // (and its local-testing stand-in), one pair per word.
-      audio: { normal: `audio/${c.word}-normal.mp3`, slow: `audio/${c.word}-slow.mp3` },
-      pos: { x: evenlySpacedX(i, pack.cards.length, CARD_SIZE.w), y: CARD_Y },
-      size: CARD_SIZE,
-      z: 3,
-      draggableBy: "both",
-      visibleTo: "both",
-    };
-    objects.push(card);
-  });
-
-  const zoneDef = pack.zones.find((z) => z.id === item.zone);
-  if (zoneDef) {
-    const center = anchorCenter(zoneDef.anchor, bySceneryId);
-    const zone: Zone = {
-      id: zoneDef.id,
-      kind: "zone",
-      label: zoneDef.id,
-      pos: {
-        x: center.x + zoneDef.offset.x - ZONE_SIZE.w / 2,
-        y: center.y + zoneDef.offset.y - ZONE_SIZE.h / 2,
-      },
-      size: ZONE_SIZE,
-      z: 0,
-      draggableBy: "both",
-      visibleTo: "both",
-      accepts: [item.object],
-      relation: zoneDef.relation,
-    };
-    objects.push(zone);
+  function isBundled(id: string): boolean {
+    return existsSync(join(dirs.bundled, `${id}.json`));
   }
 
-  return {
-    objects,
-    backdrop: item.backdrop ? (pack.backdrops[item.backdrop] ?? null) : undefined,
-    prompt: item.prompt,
-  };
+  /** Normalised, validated pack. Throws PackStoreError(404) if missing, (422) if invalid. */
+  function load(id: string): LessonPack {
+    assertId(id);
+    const cached = cache.get(id);
+    if (cached) return cached;
+
+    const path = existsSync(customJson(id)) ? customJson(id) : join(dirs.bundled, `${id}.json`);
+    if (!existsSync(path)) throw new PackStoreError(`pack "${id}" not found`, 404);
+    let pack: LessonPack;
+    try {
+      pack = loadValidPack(JSON.parse(readFileSync(path, "utf8")));
+    } catch (err) {
+      if (err instanceof PackValidationError) throw new PackStoreError(`pack "${id}" is invalid`, 422, err.problems);
+      throw new PackStoreError(`pack "${id}" could not be read`, 422, [String(err)]);
+    }
+    if (pack.id !== id) throw new PackStoreError(`pack file "${id}" contains pack "${pack.id}"`, 422);
+    cache.set(id, pack);
+    return pack;
+  }
+
+  /** Validates, then writes the pack, its audio and its plan. Nothing is written unless all of it is acceptable. */
+  function save(input: SavePackInput): LessonPack {
+    let pack: LessonPack;
+    try {
+      pack = loadValidPack(input.pack);
+    } catch (err) {
+      if (err instanceof PackValidationError) throw new PackStoreError("The pack is invalid", 422, err.problems);
+      throw new PackStoreError(err instanceof Error ? err.message : "The pack is invalid", 422);
+    }
+    if (isBundled(pack.id)) throw new PackStoreError(`"${pack.id}" is a pack shipped with the extension and cannot be replaced`, 409);
+
+    const audio = new Map<string, Buffer>();
+    for (const [file, b64] of Object.entries(input.audio ?? {})) {
+      if (!isValidGeneratedAudioFile(file)) throw new PackStoreError(`"${file}" is not an allowed audio file name`, 400);
+      if (typeof b64 !== "string") throw new PackStoreError(`audio "${file}" must be base64 text`, 400);
+      const bytes = Buffer.from(b64, "base64");
+      if (bytes.length > MAX_AUDIO_FILE_BYTES) throw new PackStoreError(`audio "${file}" is too large`, 413);
+      if (!looksLikeMp3(bytes)) throw new PackStoreError(`audio "${file}" is not an mp3`, 415);
+      audio.set(file, bytes);
+    }
+
+    // Every generated audio path the pack refers to must exist once this save completes.
+    const prefix = `/packs/${pack.id}/audio/`;
+    for (const card of pack.cards) {
+      for (const path of card.audio ? [card.audio.normal, card.audio.slow] : []) {
+        if (!path.startsWith(prefix)) continue;
+        const file = path.slice(prefix.length);
+        if (!audio.has(file) && !existsSync(join(customDir(pack.id), "audio", file))) {
+          throw new PackStoreError(`card "${card.id}" refers to audio "${file}" that was not provided`, 422);
+        }
+      }
+    }
+
+    if (input.plan !== undefined && (typeof input.plan !== "string" || input.plan.length > MAX_PLAN_CHARS)) {
+      throw new PackStoreError("The plan must be text", 400);
+    }
+
+    mkdirSync(join(customDir(pack.id), "audio"), { recursive: true });
+    for (const [file, bytes] of audio) writeFileSync(join(customDir(pack.id), "audio", file), bytes);
+    if (input.plan !== undefined) writeFileSync(join(customDir(pack.id), "plan.md"), input.plan, "utf8");
+    writeFileSync(customJson(pack.id), JSON.stringify(pack, null, 2), "utf8");
+    cache.set(pack.id, pack);
+    return pack;
+  }
+
+  function list(): PackSummary[] {
+    const out: PackSummary[] = [];
+    for (const [dir, custom] of [[dirs.bundled, false], [dirs.custom, true]] as const) {
+      if (!existsSync(dir)) continue;
+      for (const file of readdirSync(dir)) {
+        if (!file.endsWith(".json")) continue;
+        const id = file.slice(0, -".json".length);
+        try {
+          const pack = load(id);
+          out.push({ id, title: pack.title, custom });
+        } catch {
+          /* an invalid pack is not offered */
+        }
+      }
+    }
+    return out;
+  }
+
+  /** Absolute path of a generated audio file, or null. Never anything outside the pack's audio directory. */
+  function audioFile(id: string, file: string): string | null {
+    if (!PACK_ID_RE.test(id) || !isValidGeneratedAudioFile(file)) return null;
+    const path = join(customDir(id), "audio", file);
+    return existsSync(path) ? path : null;
+  }
+
+  function plan(id: string): string | null {
+    if (!PACK_ID_RE.test(id)) return null;
+    const path = join(customDir(id), "plan.md");
+    return existsSync(path) ? readFileSync(path, "utf8") : null;
+  }
+
+  return { load, save, list, audioFile, plan };
 }
+
+export type PackStore = ReturnType<typeof createPackStore>;

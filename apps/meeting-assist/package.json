@@ -10,6 +10,7 @@
     "test": "tsx --test $(find src -name '*.test.ts')"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.14.0",
     "@realia/shared": "workspace:*",
     "@vennmeet/shared": "workspace:*",
     "mammoth": "^1.8.0",

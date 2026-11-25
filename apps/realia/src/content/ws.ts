@@ -6,6 +6,8 @@ const MAX_BACKOFF_MS = 8000;
 export interface WsClientOptions {
   url: string;
   code: string;
+  /** This browser's selected lesson. The relay uses it only if this join creates the room. */
+  packId?: string;
   onMessage: (msg: ServerMessage) => void;
 }
 
@@ -35,7 +37,7 @@ export function connect(opts: WsClientOptions): WsClient {
 
     ws.addEventListener("open", () => {
       backoffMs = INITIAL_BACKOFF_MS;
-      send({ type: "join", code: opts.code });
+      send({ type: "join", code: opts.code, ...(opts.packId ? { packId: opts.packId } : {}) });
     });
 
     ws.addEventListener("message", (e) => {

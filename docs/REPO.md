@@ -1,26 +1,34 @@
 # This repo
 
-Three products, one repo:
+Three products, one repo, all built:
 
-- **Realia** (language teaching) — `apps/realia`, relay at `apps/realia-relay`,
-  types at `packages/realia-shared`. Built; see `docs/PRD.md`.
-- **VennMeet** (business meetings) — `apps/vennmeet` and `apps/vennmeet-relay`,
-  types at `packages/vennmeet-shared`. Not yet built; created by its own spec
-  (`docs/SPEC-VENNMEET.md`) when that work starts.
+- **Realia** (language teaching) — the extension at `apps/realia`, relay at
+  `apps/realia-relay`, shared protocol and pack logic at
+  `packages/realia-shared`. See `docs/PRD.md`.
+- **Venn** (meetings) — `apps/vennmeet` and `apps/vennmeet-relay`, types at
+  `packages/vennmeet-shared`. See `docs/SPEC-VENNMEET.md`.
 - **ScreenView** (interview practice) — `apps/screenview` and
-  `apps/screenview-practice`. Not yet built; created by its own spec
-  (`docs/SPEC-SCREENVIEW.md`) when that work starts.
+  `apps/screenview-practice`, shared at `packages/screenview-shared`. See
+  `docs/SPEC-SCREENVIEW.md`.
 
-Do not create empty folders or placeholder packages for VennMeet or
-ScreenView ahead of time. They show up when their own build prompts run, not
-before.
+`apps/meeting-assist` is the drafting service Realia and Venn share: it
+holds the Anthropic and ElevenLabs keys (in its environment, never in an
+extension) and turns uploaded materials into a Realia lesson or a Venn
+deck for the user to review.
 
 Shared packages are extracted only once a second app actually needs them —
-not in anticipation of one. `packages/realia-shared` holds Realia's types and
-nothing else; it is not a dumping ground for whatever a future app needs.
-The one planned exception: the overlay engine the three products share is
-extracted out of `apps/realia` exactly once, during VennMeet's own build
-(its prompt 2), when there are two real consumers and the right API is
-visible from having both in hand. An overlay package designed from Realia
-alone, before a second app exists to argue with it, would be wrong in ways
-that only show up once something else tries to use it.
+not in anticipation of one. `packages/overlay-shared` is the overlay engine,
+extracted from Realia when ScreenView needed it.
+
+`packages/realia-shared` holds Realia's protocol types plus the pure pack
+logic that must behave identically everywhere a pack is touched:
+normalising the original on-disk format, laying an item out on the stage,
+and validating a pack. The generator (what is allowed), the relay (what is
+played) and the approval screen's preview (what the teacher sees) all run
+the same code. It is built to `dist/`, so build it before running the relay
+or meeting-assist on their own (the root `dev:*` scripts do).
+
+Ports: realia-relay 8787, vennmeet-relay 8788, screenview-practice 8789,
+meeting-assist 8790. Stop one by its port (`fuser -k 8787/tcp`), never with a
+loose `pkill` pattern — other projects on the same machine run as
+`tsx src/index.ts`.

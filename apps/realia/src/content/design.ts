@@ -36,6 +36,13 @@ export const HELD_SCALE = 1.05;
 export const HELD_SHADOW = "0 10px 24px rgba(0,0,0,0.55)";
 
 export const SENTENCE_FONT_SIZE_PX = 20;
+
+// The generalised kinds (sort, gap, match): text-first, compact, and
+// still opaque on their own ground over live video.
+export const CHIP_FONT_SIZE_PX = 14;
+export const ZONE_BG = "rgba(18,18,20,0.88)";
+export const ZONE_LABEL_FONT_SIZE_PX = 14;
+export const GAP_TEXT_FONT_SIZE_PX = 17;
 export const SENTENCE_GAP_PX = 8;
 
 export const PEER_CURSOR_DOT_PX = 12;

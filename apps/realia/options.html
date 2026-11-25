@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Clickable Objects — plan</title>
+    <title>Realia — lessons</title>
     <style>
       * { box-sizing: border-box; }
       body {
@@ -11,11 +11,11 @@
         background: #18181a;
         color: #f2f2f2;
       }
-      main { max-width: 640px; margin: 0 auto; padding: 32px 16px; }
+      main { max-width: 820px; margin: 0 auto; padding: 32px 16px 80px; }
       h1 { font-size: 16px; }
       h2 { font-size: 15px; margin: 0 0 8px; }
       label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #9a9a9a; margin-bottom: 14px; }
-      textarea, input[type="text"] {
+      textarea, input[type="text"], input[type="number"], select {
         font: inherit;
         padding: 8px;
         border-radius: 6px;
@@ -54,11 +54,66 @@
       .co-approval-item.co-selected { background: #2f3f6f; }
       .co-approval-actions { margin-top: 16px; }
       .co-approval-done p { font-size: 14px; }
+
+      .co-field { margin-bottom: 16px; }
+      .co-field-label { color: #cfcfcf; font-weight: 600; }
+      .co-row { display: flex; gap: 8px; align-items: center; }
+      .co-row input[type="number"] { width: 80px; }
+      .co-row input[type="text"] { flex: 1; }
+      .co-doors { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 18px; }
+      .co-door { flex-direction: row; align-items: center; gap: 8px; color: #f2f2f2; font-size: 14px; margin: 0; }
+      .co-note { font-size: 13px; color: #cfcfcf; background: #232326; border-radius: 8px; padding: 8px 12px; }
+      .co-warn { color: #f0c36a; background: #2e2716; }
+      .co-error { color: #f0a0a0; background: #2e1b1b; border-radius: 8px; padding: 8px 12px; }
+      .co-error p { margin: 0 0 6px; }
+      .co-error pre { white-space: pre-wrap; max-height: 300px; overflow: auto; font-size: 11px; color: #ddd; }
+      .co-small { font-size: 12px; padding: 4px 10px; margin: 0; }
+
+      .co-lessons { list-style: none; padding: 0; margin: 0 0 8px; }
+      .co-lesson { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; }
+      .co-lesson.co-selected { background: #232c42; }
+      .co-lesson-title { flex: 1; }
+      .co-lesson-tag { font-size: 11px; color: #9a9a9a; }
+      .co-lesson-current { font-size: 12px; color: #8fb3ff; }
+      .co-plan-view { background: #1f1f22; border-radius: 8px; padding: 4px 16px; margin: 0 0 10px; }
+      .co-lessons-section, .co-work { margin-bottom: 28px; }
+
+      .co-teach-normally { background: #1f1f22; border-radius: 8px; padding: 4px 14px; }
+      .co-teach-normally h3 { font-size: 13px; color: #9a9a9a; }
+      .co-activity { background: #1f1f22; border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
+      .co-activity-head { display: flex; align-items: center; gap: 10px; }
+      .co-activity-num { font-weight: 700; color: #9a9a9a; }
+      .co-activity-source { flex: 1; color: #9a9a9a; font-size: 12px; }
+      .co-kind { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 8px; border-radius: 10px; background: #3a3a3d; }
+      .co-kind-sort { background: #2f4f7a; } .co-kind-gap { background: #5a3f7a; } .co-kind-match { background: #2f6f4f; } .co-kind-place { background: #6a5a2a; }
+      .co-activity-prompt { font-size: 15px; margin: 8px 0; }
+      .co-activity-key { margin-top: 8px; }
+      .co-key-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #9a9a9a; }
+      .co-key-list { margin: 4px 0; padding-left: 18px; color: #e8e8e8; }
+      .co-key-wrong { color: #f0a0a0; }
+      .co-activity-feedback { font-size: 12px; color: #9a9a9a; margin: 4px 0 0; }
+
+      .co-preview { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #2b3440; border-radius: 8px; overflow: hidden; font-size: 11px; }
+      .co-preview-obj { position: absolute; box-sizing: border-box; border-radius: 6px; display: flex; align-items: center; justify-content: center; text-align: center; overflow: hidden; line-height: 1.15; padding: 2px; }
+      .co-preview-chip, .co-preview-draggable, .co-preview-label, .co-preview-card { background: #fff; color: #111; border: 1px solid #1a1a1a; font-weight: 600; }
+      .co-preview-card { background: #f4f1ff; }
+      .co-preview-bin, .co-preview-slot { background: rgba(18,18,20,0.88); border: 1px dashed rgba(255,255,255,0.75); color: #fff; align-items: flex-start; font-weight: 600; }
+      .co-preview-zone { border: 1px dashed rgba(255,255,255,0.75); }
+      .co-preview-text { background: #fff; color: #111; justify-content: flex-start; text-align: left; padding: 4px 8px; font-size: 12px; }
+      .co-preview-gap { display: inline-block; min-width: 2em; border-bottom: 2px solid #111; color: #3a6ee8; font-weight: 700; text-align: center; margin: 0 2px; }
+
+      .co-plan { background: #1f1f22; border-radius: 10px; padding: 8px 16px; margin: 18px 0; }
+      .co-plan summary { cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 12px; }
+      .co-markdown { font-size: 14px; line-height: 1.5; color: #e8e8e8; }
+      .co-markdown h3, .co-markdown h4, .co-markdown h5 { color: #fff; margin: 18px 0 6px; }
+      .co-markdown table { border-collapse: collapse; margin: 8px 0; font-size: 13px; }
+      .co-markdown th, .co-markdown td { border: 1px solid #3a3a3d; padding: 4px 8px; text-align: left; vertical-align: top; }
+      .co-markdown code { background: #2a2a2d; padding: 0 4px; border-radius: 4px; }
     </style>
   </head>
   <body>
     <main>
-      <h1>Clickable Objects</h1>
+      <h1>Realia</h1>
       <div id="app"></div>
     </main>
     <script type="module" src="/src/options/index.ts"></script>

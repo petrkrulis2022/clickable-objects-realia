@@ -1,70 +1,29 @@
-import { createServer } from "node:http";
-import type { LessonPack } from "@realia/shared";
-import { extractAllMaterials, type RawMaterial } from "./materials.js";
-import { createNullExtractors, createRealExtractors } from "./extractors.js";
-import { createAnthropicClient, createNullLlmClient } from "./llm.js";
-import { draftVennPlan } from "./vennPlan.js";
-import { draftRealiaPlan } from "./realiaPlan.js";
+import { createElevenLabsTts } from "./audio.js";
+import { createRealExtractors } from "./extractors.js";
+import { createAnthropicClient, createNullLlmClient, DEFAULT_MODEL } from "./llm.js";
+import { createAssistServer } from "./server.js";
 
 const PORT = 8790;
 
-// Null fallbacks mean this service starts and its material-extraction
-// path works (PDF/DOCX are local, no key needed) without any key
-// configured; a plan request without ANTHROPIC_API_KEY set fails with
-// a clear error rather than silently returning nothing.
+// Keys live here, on the service, and nowhere else: never in the
+// extension, never in a pack. Without ANTHROPIC_API_KEY the service
+// still starts (PDF/DOCX extraction is local) and a draft request
+// gets a clear error; without ELEVENLABS_API_KEY approved cards are
+// silent and marked, never voiced by a fallback.
 const anthropicKey = process.env.ANTHROPIC_API_KEY;
-const anthropicModel = process.env.ANTHROPIC_MODEL;
+const model = process.env.ANTHROPIC_MODEL || DEFAULT_MODEL;
 const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
 
-const extractors = createRealExtractors(elevenLabsKey);
-const llm = anthropicKey ? createAnthropicClient(anthropicKey, anthropicModel) : createNullLlmClient();
-
-type PlanRequestBody =
-  | { product: "vennmeet"; meetingContext?: string; materials: RawMaterial[] }
-  | { product: "realia"; referencePack: LessonPack; focusNotes?: string; materials: RawMaterial[] };
-
-async function handlePlanDraft(body: PlanRequestBody) {
-  if (!anthropicKey) {
-    throw new Error("ANTHROPIC_API_KEY is not set on the meeting-assist service — no plan can be drafted without it.");
-  }
-  const materials = await extractAllMaterials(body.materials, extractors);
-
-  if (body.product === "vennmeet") {
-    return draftVennPlan({ meetingContext: body.meetingContext, materials }, llm);
-  }
-  return draftRealiaPlan({ referencePack: body.referencePack, focusNotes: body.focusNotes, materials }, llm);
-}
-
-const httpServer = createServer((req, res) => {
-  if (req.method === "GET" && req.url === "/health") {
-    res.writeHead(200, { "content-type": "text/plain" });
-    res.end("ok");
-    return;
-  }
-
-  if (req.method === "POST" && req.url === "/plan/draft") {
-    let body = "";
-    req.on("data", (chunk) => (body += chunk));
-    req.on("end", async () => {
-      try {
-        const parsed = JSON.parse(body) as PlanRequestBody;
-        const draft = await handlePlanDraft(parsed);
-        res.writeHead(200, { "content-type": "application/json" });
-        res.end(JSON.stringify({ draft }));
-      } catch (err) {
-        res.writeHead(400, { "content-type": "application/json" });
-        res.end(JSON.stringify({ error: err instanceof Error ? err.message : "Unknown error" }));
-      }
-    });
-    return;
-  }
-
-  res.writeHead(404).end();
+const server = createAssistServer({
+  llm: anthropicKey ? createAnthropicClient(anthropicKey, model) : createNullLlmClient(),
+  llmConfigured: Boolean(anthropicKey),
+  model,
+  extractors: createRealExtractors(elevenLabsKey),
+  tts: elevenLabsKey ? createElevenLabsTts(elevenLabsKey, process.env.ELEVENLABS_VOICE_ID) : null,
 });
 
-httpServer.listen(PORT, () => {
-  console.log(`[meeting-assist] listening on http://localhost:${PORT}`);
-  if (!anthropicKey) {
-    console.log("[meeting-assist] ANTHROPIC_API_KEY not set — /plan/draft will return an error until it is.");
-  }
+server.listen(PORT, () => {
+  console.log(`[meeting-assist] listening on http://localhost:${PORT} (model: ${model})`);
+  if (!anthropicKey) console.log("[meeting-assist] ANTHROPIC_API_KEY not set — /plan/draft will return an error until it is.");
+  if (!elevenLabsKey) console.log("[meeting-assist] ELEVENLABS_API_KEY not set — approved cards will be silent and marked.");
 });

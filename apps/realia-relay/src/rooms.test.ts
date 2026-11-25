@@ -1,0 +1,149 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { loadValidPack, type LessonPack, type Zone } from "@realia/shared";
+import type { WebSocket } from "ws";
+import { applyDrop, applyMove, joinRoom, leaveRoom, seedInitialItem, type Room } from "./rooms.js";
+
+const PACKS = join(import.meta.dirname, "..", "..", "realia", "public", "packs");
+const demo = (): LessonPack => loadValidPack(JSON.parse(readFileSync(join(PACKS, "demo-modals.json"), "utf8")));
+const legacy = (): LessonPack => loadValidPack(JSON.parse(readFileSync(join(PACKS, "a2-prepositions-place.json"), "utf8")));
+
+interface FakeWs {
+  OPEN: number;
+  readyState: number;
+  sent: unknown[];
+  send(data: string): void;
+}
+
+function fakeWs(): FakeWs {
+  return {
+    OPEN: 1,
+    readyState: 1,
+    sent: [],
+    send(data: string) {
+      this.sent.push(JSON.parse(data));
+    },
+  };
+}
+
+let codeCounter = 0;
+function newRoom(pack: LessonPack, itemIndex: number): { room: Room; teacher: FakeWs } {
+  const teacher = fakeWs();
+  const joined = joinRoom(`T${++codeCounter}`, teacher as unknown as WebSocket)!;
+  seedInitialItem(joined.room, pack, itemIndex);
+  return { room: joined.room, teacher };
+}
+
+function dragAndDrop(room: Room, ws: FakeWs, objectId: string, zoneId: string | null) {
+  applyMove(room, "teacher", objectId, { x: 0.5, y: 0.5 });
+  return applyDrop(room, "teacher", objectId, zoneId, ws as unknown as WebSocket);
+}
+
+function lastVerdict(ws: FakeWs) {
+  return [...ws.sent].reverse().find((m) => (m as { type: string }).type === "verdict") as { correct: boolean };
+}
+
+function close(room: Room) {
+  for (const t of room.lockTimers.values()) clearTimeout(t);
+  leaveRoom(room, "teacher");
+}
+
+test("sort: several objects go into one bin, each into its own slot", () => {
+  const { room, teacher } = newRoom(demo(), 0);
+  dragAndDrop(room, teacher, "mustnt", "bin-forbidden");
+  assert.equal(lastVerdict(teacher).correct, true);
+  dragAndDrop(room, teacher, "cant", "bin-forbidden");
+  assert.equal(lastVerdict(teacher).correct, true);
+  const a = room.state.objects["mustnt"].pos;
+  const b = room.state.objects["cant"].pos;
+  assert.notDeepEqual(a, b, "two objects in one bin must not land on top of each other");
+  const bin = room.state.objects["bin-forbidden"] as Zone;
+  for (const p of [a, b]) {
+    assert.ok(p.x >= bin.pos.x && p.y >= bin.pos.y && p.y < bin.pos.y + bin.size.h);
+  }
+  close(room);
+});
+
+test("sort: a wrong bin is refused, the object goes back, and the mistake is logged", () => {
+  const { room, teacher } = newRoom(demo(), 0);
+  const start = { ...room.state.objects["dont-have-to"].pos };
+  const event = dragAndDrop(room, teacher, "dont-have-to", "bin-forbidden");
+  assert.equal(lastVerdict(teacher).correct, false);
+  assert.deepEqual(room.state.objects["dont-have-to"].pos, start);
+  assert.deepEqual(event && event.type === "drop" ? [event.objectId, event.zoneId, event.correct] : null, [
+    "dont-have-to",
+    "bin-forbidden",
+    false,
+  ]);
+  close(room);
+});
+
+test("sort: a wrong drop puts an object back in the slot it came from, still holding it", () => {
+  const { room, teacher } = newRoom(demo(), 0);
+  dragAndDrop(room, teacher, "mustnt", "bin-forbidden");
+  const slot = { ...room.state.objects["mustnt"].pos };
+  dragAndDrop(room, teacher, "mustnt", "bin-necessary"); // wrong: back where the drag began
+  assert.deepEqual(room.state.objects["mustnt"].pos, slot);
+  dragAndDrop(room, teacher, "cant", "bin-forbidden"); // the slot is still taken, so cant gets the next one
+  assert.notDeepEqual(room.state.objects["cant"].pos, slot);
+  close(room);
+});
+
+test("gap: moving an object to another correct gap frees the gap it left", () => {
+  const { room, teacher } = newRoom(demo(), 1);
+  dragAndDrop(room, teacher, "must", "gap-1");
+  dragAndDrop(room, teacher, "must-2", "gap-1");
+  assert.equal(lastVerdict(teacher).correct, false, "gap 1 is taken by 'must'");
+  dragAndDrop(room, teacher, "must", "gap-4"); // 'must' leaves gap 1 for gap 4
+  assert.equal(lastVerdict(teacher).correct, true);
+  dragAndDrop(room, teacher, "must-2", "gap-1");
+  assert.equal(lastVerdict(teacher).correct, true, "gap 1 is free again");
+  close(room);
+});
+
+test("gap: an object is accepted by more than one gap, and a filled gap takes no second answer", () => {
+  const { room, teacher } = newRoom(demo(), 1);
+  dragAndDrop(room, teacher, "must", "gap-4");
+  assert.equal(lastVerdict(teacher).correct, true, "'must' is correct in gap 4 as well as gap 1");
+  const start = { ...room.state.objects["must-2"].pos };
+  const event = dragAndDrop(room, teacher, "must-2", "gap-4");
+  assert.equal(lastVerdict(teacher).correct, false, "gap 4 is already filled");
+  assert.deepEqual(room.state.objects["must-2"].pos, start);
+  assert.equal(event, null, "a full gap is not the student's mistake, so nothing is logged");
+  dragAndDrop(room, teacher, "must-2", "gap-1");
+  assert.equal(lastVerdict(teacher).correct, true);
+  close(room);
+});
+
+test("gap: a distractor is wrong in every gap, goes back, and the mistake is logged", () => {
+  const { room, teacher } = newRoom(demo(), 1);
+  for (const gap of ["gap-1", "gap-2", "gap-3", "gap-4"]) {
+    const start = { ...room.state.objects["must-to"].pos };
+    const event = dragAndDrop(room, teacher, "must-to", gap);
+    assert.equal(lastVerdict(teacher).correct, false);
+    assert.deepEqual(room.state.objects["must-to"].pos, start);
+    assert.ok(event && event.type === "drop" && !event.correct, "logged as a mistake");
+  }
+  close(room);
+});
+
+test("place: the original lesson still snaps the object to the zone's centre", () => {
+  const { room, teacher } = newRoom(legacy(), 0);
+  dragAndDrop(room, teacher, "keys", "on_table");
+  assert.equal(lastVerdict(teacher).correct, true);
+  const zone = room.state.objects["on_table"];
+  const keys = room.state.objects["keys"];
+  assert.deepEqual(keys.pos, {
+    x: zone.pos.x + zone.size.w / 2 - keys.size.w / 2,
+    y: zone.pos.y + zone.size.h / 2 - keys.size.h / 2,
+  });
+  close(room);
+});
+
+test("the room records which pack it is playing", () => {
+  const { room } = newRoom(demo(), 2);
+  assert.deepEqual(room.state.activity, { packId: "demo-modals", itemIndex: 2 });
+  close(room);
+});

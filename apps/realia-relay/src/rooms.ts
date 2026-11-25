@@ -1,10 +1,25 @@
-import type { LessonEvent, RoomState, Role, StageObject, Vec, Zone } from "@realia/shared";
+import {
+  resolveItem,
+  snapPosition,
+  zoneCapacity,
+  type LessonEvent,
+  type LessonPack,
+  type Role,
+  type RoomState,
+  type StageObject,
+  type Vec,
+  type Zone,
+} from "@realia/shared";
 import type { WebSocket } from "ws";
-import type { ResolvedItem } from "./packs.js";
 
 // One second of silence clears the soft lock even if the holder never
 // sends an explicit drop (crash, closed laptop lid, etc).
 const SILENCE_LOCK_MS = 1000;
+
+interface Placement {
+  zoneId: string;
+  slot: number;
+}
 
 export interface Room {
   state: RoomState;
@@ -12,7 +27,11 @@ export interface Room {
   lockTimers: Map<string, NodeJS.Timeout>;
   /** Position an object had just before its current hold began, so a wrong drop can revert to it. */
   dragStartPos: Map<string, Vec>;
-  /** When the current activity item began; "5" has no item system yet, so this is the session start. */
+  /** Where an object sat (zone + slot) before its current hold began, restored on a wrong drop. */
+  dragStartPlacement: Map<string, Placement | null>;
+  /** Objects currently sitting correctly in a zone. A bin holds several; a slot holds one. */
+  placements: Map<string, Placement>;
+  /** When the current activity item began. */
   itemStartedAt: number;
   /** Guards leaveRoom against firing "session end" twice — see its comment. */
   ended: boolean;
@@ -42,6 +61,8 @@ export function joinRoom(
       connections: {},
       lockTimers: new Map(),
       dragStartPos: new Map(),
+      dragStartPlacement: new Map(),
+      placements: new Map(),
       itemStartedAt: now,
       ended: false,
     };
@@ -111,7 +132,12 @@ export function applyMove(room: Room, role: Role, id: string, pos: Vec) {
   if (!obj) return;
   if (obj.heldBy && obj.heldBy !== role) return; // held by the other role, reject
 
-  if (!obj.heldBy) room.dragStartPos.set(id, { ...obj.pos });
+  if (!obj.heldBy) {
+    room.dragStartPos.set(id, { ...obj.pos });
+    // Picking an object up takes it out of the zone it was sitting in.
+    room.dragStartPlacement.set(id, room.placements.get(id) ?? null);
+    room.placements.delete(id);
+  }
   obj.heldBy = role;
   obj.pos = pos;
   bumpAndBroadcastPatch(room, obj);
@@ -131,12 +157,31 @@ export function applyMove(room: Room, role: Role, id: string, pos: Vec) {
   );
 }
 
+/** The lowest slot in `zone` no other object occupies, or null if the zone is full. */
+function freeSlot(room: Room, zone: Zone, obj: StageObject): number | null {
+  const taken = new Set<number>();
+  for (const [objectId, p] of room.placements) {
+    if (objectId !== obj.id && p.zoneId === zone.id) taken.add(p.slot);
+  }
+  const capacity = zoneCapacity(zone, obj.size);
+  for (let slot = 0; slot < capacity; slot++) {
+    if (!taken.has(slot)) return slot;
+  }
+  return null;
+}
+
 /**
  * The relay decides correctness, never the client (docs/PRD.md, "5.
  * Server-side validation"): looks up the claimed zone, checks its
- * `accepts` list, snaps to the zone centre if correct or reverts to
- * the pre-drag position if not, replies with a verdict to the
- * dropper alone, and returns the LessonEvent for the caller to log.
+ * `accepts` list, snaps into the zone if correct or reverts to the
+ * pre-drag position if not, replies with a verdict to the dropper
+ * alone, and returns the LessonEvent for the caller to log.
+ *
+ * A zone can accept several objects (a sort bin) and an object can be
+ * accepted by several zones (a gap two answers could fill). A correct
+ * object dropped on a zone that is already full (a gap already
+ * filled) goes back without being logged as a mistake: the answer
+ * wasn't wrong, the space was taken.
  */
 export function applyDrop(
   room: Room,
@@ -154,19 +199,30 @@ export function applyDrop(
     room.lockTimers.delete(id);
   }
 
-  const zone = zoneId ? (room.state.objects[zoneId] as Zone | undefined) : undefined;
-  const correct = !!zone && zone.kind === "zone" && zone.accepts.includes(id);
-  const startPos = room.dragStartPos.get(id) ?? obj.pos;
-  room.dragStartPos.delete(id);
+  const target = zoneId ? room.state.objects[zoneId] : undefined;
+  const zone = target && target.kind === "zone" ? (target as Zone) : undefined;
+  const accepted = !!zone && zone.accepts.includes(id);
+  const slot = accepted ? freeSlot(room, zone!, obj) : null;
+  const correct = accepted && slot !== null;
 
-  obj.pos = correct
-    ? { x: zone!.pos.x + zone!.size.w / 2 - obj.size.w / 2, y: zone!.pos.y + zone!.size.h / 2 - obj.size.h / 2 }
-    : startPos;
+  const startPos = room.dragStartPos.get(id) ?? obj.pos;
+  const startPlacement = room.dragStartPlacement.get(id) ?? null;
+  room.dragStartPos.delete(id);
+  room.dragStartPlacement.delete(id);
+
+  if (correct) {
+    obj.pos = snapPosition(zone!, obj, slot!);
+    room.placements.set(id, { zoneId: zone!.id, slot: slot! });
+  } else {
+    obj.pos = startPos;
+    if (startPlacement) room.placements.set(id, startPlacement);
+  }
   obj.heldBy = null;
 
   bumpAndBroadcastPatch(room, obj);
   send(ws, { type: "verdict", id, zoneId: zoneId ?? "", correct });
 
+  if (accepted && !correct) return null; // the zone was full — not the student's mistake
   return {
     t: Date.now(),
     type: "drop",
@@ -198,64 +254,62 @@ export function applyReveal(
 }
 
 /**
- * Replaces the room's objects wholesale with a resolved pack item —
+ * Replaces the room's objects wholesale with one pack item —
  * "Advancing an item... resets objects to that item's layout"
  * (docs/PRD.md, "7. Teacher panel and activity runner"). Mutates state
  * only; does not broadcast (see setItem/seedInitialItem below), so a
  * fresh room's first joiner gets one consistent 'state' snapshot
  * rather than a 'patch' arriving ahead of it.
  */
-function applyItem(
-  room: Room,
-  packId: string,
-  itemIndex: number,
-  resolved: ResolvedItem,
-): { changed: StageObject[]; removed: string[] } {
+function applyItem(room: Room, pack: LessonPack, itemIndex: number) {
+  const resolved = resolveItem(pack, itemIndex);
   const newIds = new Set(resolved.objects.map((o) => o.id));
   const removed = Object.keys(room.state.objects).filter((id) => !newIds.has(id));
 
   room.state.objects = {};
   for (const obj of resolved.objects) room.state.objects[obj.id] = obj;
-  room.state.activity = { packId, itemIndex };
+  room.state.activity = { packId: pack.id, itemIndex };
   if (resolved.backdrop !== undefined) room.state.backdrop = resolved.backdrop;
 
   room.dragStartPos.clear();
+  room.dragStartPlacement.clear();
+  room.placements.clear();
   for (const t of room.lockTimers.values()) clearTimeout(t);
   room.lockTimers.clear();
   room.itemStartedAt = Date.now();
 
-  return { changed: resolved.objects, removed };
+  return { changed: resolved.objects, removed, backdrop: resolved.backdrop, prompt: resolved.prompt };
 }
 
-/** Seeds a freshly created room's first item. No broadcast — there's no peer yet, and the joiner gets it via 'state'. */
-export function seedInitialItem(room: Room, packId: string, itemIndex: number, resolved: ResolvedItem) {
-  applyItem(room, packId, itemIndex, resolved);
+/** Seeds a freshly created room's first item. No broadcast — there's no peer yet, and the joiner gets it via 'state'. Returns the item's prompt. */
+export function seedInitialItem(room: Room, pack: LessonPack, itemIndex: number): string {
+  return applyItem(room, pack, itemIndex).prompt;
 }
 
 /** Advances/changes the activity for a room that may already have a connected peer — broadcasts the change. */
-export function setItem(room: Room, packId: string, itemIndex: number, resolved: ResolvedItem) {
-  const { changed, removed } = applyItem(room, packId, itemIndex, resolved);
+export function setItem(room: Room, pack: LessonPack, itemIndex: number): string {
+  const { changed, removed, backdrop, prompt } = applyItem(room, pack, itemIndex);
   room.state.rev += 1;
   broadcast(room, null, {
     type: "patch",
     rev: room.state.rev,
     changed,
     removed,
-    ...(resolved.backdrop !== undefined ? { backdrop: resolved.backdrop } : {}),
+    ...(backdrop !== undefined ? { backdrop } : {}),
   });
+  return prompt;
 }
 
 /** Teacher-only nav; ignored from the student (docs/PRD.md: "// teacher only"). */
 export function applySetActivity(
   room: Room,
   role: Role,
-  packId: string,
+  pack: LessonPack,
   itemIndex: number,
-  resolved: ResolvedItem,
 ): LessonEvent | null {
   if (role !== "teacher") return null;
-  setItem(room, packId, itemIndex, resolved);
-  return { t: Date.now(), type: "item", index: itemIndex, prompt: resolved.prompt };
+  const prompt = setItem(room, pack, itemIndex);
+  return { t: Date.now(), type: "item", index: itemIndex, prompt };
 }
 
 /** Teacher-only; ignored from the student (docs/PRD.md: "// teacher only"). */

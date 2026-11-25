@@ -479,6 +479,43 @@ No free-text editing here. If she wants to write her own, hand her the pack file
 
 Acceptance: the screen appears in under 90 seconds after a 50-minute lesson; every button completes in under 10 seconds; approving writes a pack that next week's runner loads unchanged.
 
+### 12. The textbook-to-pack generator
+
+*Added 25 Nov 2026. Supersedes the "reuse only" constraint in 10 and the swap / too-easy buttons in 11.*
+
+Not a new feature: a third entry point into the generator and approval screen of 10 and 11. Three doors, one pipeline, one review screen:
+
+- from last lesson's transcript and event log → next week's pack
+- from photos plus the teacher's instructions → this week's pack
+- from scratch → a new pack from the teacher's brief alone
+
+If you find yourself writing a second generator or a second approval UI, stop and merge them instead.
+
+**Unblock.** CORS on both services, localhost in the manifest permissions. The lesson report uses the pack actually played; a room starts on the pack the teacher selected; the student's client loads the teacher's pack, never its own saved one. Acceptance: a non-default pack can be selected, played by both sides, and appears correctly in the report.
+
+**Generalise the pack format.** Zones become free-standing (`label`, with optional `anchor`/`relation` for the original place zones, or an explicit `pos`). Items gain a kind, an id and a prompt, and one `pairs` array expresses every shape:
+
+- place: one object, one zone, with relation and sentence template (the original)
+- sort: many objects, few bins; several pairs share a zoneId
+- gap: objects into numbered gaps in a displayed text (also word order and timelines — no fifth kind)
+- match: one-to-one pairing
+
+A zone accepts more than one object, and an object may be correct in more than one zone. An item may carry `distractors`: wrong-answer chips, correct in no zone. A gap item needs at least two — with one chip per gap the last answer goes in by elimination, with no English involved — and they must be wrong in every gap. Chips are shuffled (the same way on every client) so neither distractors nor match answers line up with their zones. Acceptance: the existing a2-prepositions-place pack loads and plays byte-identical to today; a hand-written pack of each new kind loads and plays.
+
+**The generator.** Accepts images plus the teacher's instructions and returns both a pack and a short teaching plan (what each activity is for, the answer key, the two or three errors to expect). The model may refuse: listening, free speaking and reading comprehension are marked "teach normally, no objects" in the plan and left out of the pack. Validate strictly before returning — every objectId and zoneId exists, every position is inside the stage, no item has zero pairs or an empty prompt, at most 8 objects and 6 zones per item, zones don't overlap — retry once, then return the error and the raw output rather than loading anything broken.
+
+**Images are transient.** Held in memory for the generation call, then discarded. Never written to disk, cached, added to a library, shared between teachers, re-served, or rendered on the stage. A test asserts no image bytes survive the request. This is the line between a teacher preparing their own lesson from a book they own and a product that ingests publishers' content.
+
+**The form.** Five fields on the options page: photos (resized in the browser), lesson length and one-to-one or group, the student's level and first language, what is already done and what is new, what to focus on.
+
+**Approval.** The existing screen, extended: each activity laid out as it will appear, the teaching plan, and the answer key — seen before the lesson, not during it. Approve, regenerate one activity, or discard.
+
+**Audio at approval time.** On approval the service generates normal and slow mp3s for every new word with ElevenLabs and stores them with the pack. The extension plays pre-generated files only and holds no key. With no ELEVENLABS_API_KEY the cards are silent and visibly marked. Never browser speech synthesis: a learner copies the model voice, so a robotic card teaches bad pronunciation.
+
+Forbidden: showing, storing, caching or sharing the textbook image; browser speech synthesis; a second generator or approval screen; loading an unvalidated pack; any runtime call to Anthropic or ElevenLabs from the extension.
+
+Acceptance for the whole build: photograph two real coursebook pages, fill in the form, and get a pack and a plan a teacher could run without editing. At least one generated activity is a sort or a gap, not a place.
+
 ---
 
 If a prompt produces more than it was asked for, revert and re-run it with the extra work named and forbidden. Scope creep in a two-week build is the failure mode, not bugs.

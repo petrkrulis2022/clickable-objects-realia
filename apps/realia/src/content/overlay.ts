@@ -1,7 +1,11 @@
 import type { Backdrop, Card, StageObject } from "@realia/shared";
 import {
   BACKDROP_CROSSFADE_MS,
+  CHIP_FONT_SIZE_PX,
   DROP_ZONE_BORDER,
+  GAP_TEXT_FONT_SIZE_PX,
+  ZONE_BG,
+  ZONE_LABEL_FONT_SIZE_PX,
   EMOJI_FONT_SIZE_PX,
   HELD_SCALE,
   HELD_SHADOW,
@@ -130,6 +134,68 @@ const CSS = `
     background: rgba(255, 255, 255, 0.3);
   }
   .co-card-dots .co-dot.co-dot-filled { background: #fff; }
+  /* --- Generalised kinds (sort, gap, match). Opaque on live video, never the 88px minimum. --- */
+  .co-object[data-variant] { min-width: 0; min-height: 0; }
+  .co-object[data-variant="chip"] {
+    border-radius: 8px;
+    padding: 2px 6px;
+    gap: 4px;
+    flex-direction: row;
+  }
+  .co-object[data-variant="chip"] .co-label {
+    font-size: ${CHIP_FONT_SIZE_PX}px;
+    line-height: 1.15;
+    text-align: center;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+  }
+  .co-object[data-variant="chip"] .co-emoji { font-size: 18px; }
+  .co-object[data-kind="zone"][data-variant] {
+    opacity: 1;
+    background: ${ZONE_BG};
+    border: ${DROP_ZONE_BORDER};
+    justify-content: flex-start;
+    align-items: stretch;
+    padding: 4px 8px;
+  }
+  .co-zone-label {
+    color: #fff;
+    font-size: ${ZONE_LABEL_FONT_SIZE_PX}px;
+    font-weight: 600;
+    line-height: 1.2;
+    overflow: hidden;
+  }
+  .co-object[data-variant="bin"] .co-zone-label { text-align: center; text-transform: uppercase; letter-spacing: 0.04em; }
+  .co-object[data-variant="slot"] .co-zone-label { font-size: 13px; color: #ddd; }
+  .co-object[data-kind="text"] {
+    min-width: 0;
+    min-height: 0;
+    display: block;
+    padding: 8px 12px;
+    pointer-events: none;
+    font-size: ${GAP_TEXT_FONT_SIZE_PX}px;
+    line-height: 1.5;
+    color: ${OBJECT_LABEL_COLOR};
+    overflow: hidden;
+  }
+  .co-object[data-kind="text"].co-text-long { font-size: ${GAP_TEXT_FONT_SIZE_PX - 3}px; line-height: 1.4; }
+  .co-gap-mark {
+    display: inline-block;
+    min-width: 2.2em;
+    margin: 0 2px;
+    border-bottom: 2px solid #1a1a1a;
+    text-align: center;
+    font-size: 0.8em;
+    font-weight: 700;
+    color: #3a6ee8;
+  }
+  .co-card-silent {
+    position: absolute;
+    top: 3px;
+    right: 5px;
+    font-size: 12px;
+    opacity: 0.75;
+  }
   .co-sentence {
     position: absolute;
     left: 0;
@@ -143,6 +209,21 @@ const CSS = `
     pointer-events: none;
   }
 `;
+
+/** Renders a gap exercise's text, drawing each "[n]" marker as a numbered blank. Text only — never HTML. */
+function appendGapText(el: HTMLElement, text: string) {
+  const parts = text.split(/\[(\d+)\]/);
+  parts.forEach((part, i) => {
+    if (i % 2 === 0) {
+      if (part) el.appendChild(document.createTextNode(part));
+      return;
+    }
+    const mark = document.createElement("span");
+    mark.className = "co-gap-mark";
+    mark.textContent = part;
+    el.appendChild(mark);
+  });
+}
 
 export interface OverlayHandle {
   root: ShadowRoot;
@@ -224,7 +305,8 @@ export function mountOverlay(): OverlayHandle {
 
   function layoutObject(obj: StageObject, el: HTMLElement) {
     const { x, y } = stageToPagePx(stage, obj.pos);
-    const { w, h } = sizeToPagePx(stage, obj.size, OBJECT_MIN_SIZE_PX);
+    const minPx = obj.variant || obj.kind === "text" ? 0 : OBJECT_MIN_SIZE_PX;
+    const { w, h } = sizeToPagePx(stage, obj.size, minPx);
     // Object position is stage-relative; the stage element is itself
     // positioned in page coordinates, so children use stage-local px.
     const localX = x - stage.x;
@@ -241,8 +323,24 @@ export function mountOverlay(): OverlayHandle {
     el.className = "co-object";
     el.dataset.id = obj.id;
     el.dataset.kind = obj.kind;
+    if (obj.variant) el.dataset.variant = obj.variant;
 
-    if (obj.kind === "zone") return el;
+    if (obj.kind === "zone") {
+      // The original place zones stay an empty dashed outline; bins and slots carry their label.
+      if (obj.variant) {
+        const label = document.createElement("span");
+        label.className = "co-zone-label";
+        label.textContent = obj.label;
+        el.appendChild(label);
+      }
+      return el;
+    }
+
+    if (obj.kind === "text") {
+      appendGapText(el, obj.label);
+      if (obj.label.length > 220) el.classList.add("co-text-long");
+      return el;
+    }
 
     if (obj.kind === "card") {
       const card = obj as Card;
@@ -253,8 +351,18 @@ export function mountOverlay(): OverlayHandle {
 
       const audioDot = document.createElement("span");
       audioDot.className = "co-card-audio-dot";
-      audioDot.textContent = "🔊";
+      audioDot.textContent = card.audio ? "🔊" : "🔇";
       el.appendChild(audioDot);
+
+      // No recording exists for this word: say so, rather than voice it with a fallback.
+      if (!card.audio) {
+        const silent = document.createElement("span");
+        silent.className = "co-card-silent";
+        silent.textContent = "🔇";
+        silent.title = "No recording for this word";
+        el.appendChild(silent);
+        el.dataset.silent = "true";
+      }
 
       const emoji = document.createElement("span");
       emoji.className = "co-card-emoji";
@@ -298,8 +406,14 @@ export function mountOverlay(): OverlayHandle {
     for (const obj of objects) {
       seen.add(obj.id);
       let el = objectEls.get(obj.id);
+      if (el && (el.dataset.kind !== obj.kind || (el.dataset.variant ?? "") !== (obj.variant ?? "") || el.dataset.label !== obj.label)) {
+        el.remove();
+        objectEls.delete(obj.id);
+        el = undefined;
+      }
       if (!el) {
         el = buildObjectEl(obj);
+        el.dataset.label = obj.label;
         objectEls.set(obj.id, el);
         objectsEl.appendChild(el);
       }

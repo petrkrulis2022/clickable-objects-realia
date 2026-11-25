@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js"
+    "build": "npm run test && tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "test": "TZ=UTC LANG=en_US.UTF-8 tsx --test $(find src -name \"*.test.ts\")"
   },
   "dependencies": {
     "@realia/shared": "workspace:*",
