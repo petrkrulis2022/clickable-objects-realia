@@ -568,6 +568,21 @@ the student can complete the timetable from speech alone; the reveal fires once
 and only on a full match.
 ```
 
+**13, follow-up. No client receives an answer list**
+
+```text
+Extend the infogap zone fix to every item kind. No client ever
+receives a zone's accepts list - the relay judges drops, so no
+client needs one. The teacher's panel gets the answer key through
+the role filter, not through the pack. Add it to the logging-socket
+test: the student socket must never receive an answer list for any
+kind, not just infogap.
+```
+
+This is the same class of bug as the infogap one: information sitting in
+metadata rather than in objects. Prompt 14 would add a third instance (the plan
+strip carries prompts, minutes and the key), so this goes first.
+
 **14. The plan strip (teacher-private)**
 
 ```text
@@ -627,6 +642,60 @@ confirmation, or a per-student history.
 Acceptance: the student taps and the teacher's edge glows within 300ms and fades
 at 20 seconds; nothing about the press appears in the report; the student's own
 UI is identical before and after the teacher reacts.
+```
+
+**16. The paste door**
+
+Order: the 13 follow-up, then 16, then 14, then 15. Sixteen touches only the
+options page and the pack compiler — nothing in the relay — so it can't collide
+with anything.
+
+```text
+Add a fourth door to the options page: paste, not generate.
+
+The three existing doors all go through the model. This one must not call it at
+all. A teacher working through a coursebook has the exact sentences in front of
+her and wants those sentences, not a paraphrase of them.
+
+One textarea. Sentences above, a word bank below a --- line:
+
+  1. You ___ take a calculator into the exam.
+  2. You ___ get ready to go.
+  3. She ___ eat crisps and chocolate.
+  ---
+  shouldn't | 'd better | ought to | should | must to | don't must
+
+Parsing rules. All strict, all reported in plain words rather than guessed at:
+
+- Each line above the --- becomes one gap item. A leading number is stripped.
+- Each run of three or more underscores is one gap. A line may hold several.
+- Below the ---, entries separated by | form one word bank for the whole set.
+- A bank entry that fits no gap becomes a distractor automatically. The teacher
+  never labels anything as wrong.
+- An entry may be correct in more than one gap, and a gap may accept more than
+  one entry. Show that on the review screen; it is not an error.
+
+Answers. The teacher marks them by writing the answer inside the gap in square
+brackets - You [shouldn't] take a calculator - and the brackets are stripped
+when the item is built. If no brackets appear anywhere in the paste, the review
+screen asks her to pick each gap's answer from the bank, one tap per gap. Never
+infer an answer, and never call the model to infer one.
+
+This compiles straight to gap items in the existing pack format and goes to the
+existing approval screen. No new generator, no second review UI, no model call,
+no network request of any kind. If the input will not parse, name the offending
+line and what is wrong with it, and load nothing.
+
+Audio is still generated at approval time for any new word, exactly as the other
+doors do.
+
+Do not build: a rich text editor, drag-to-reorder, import from a file, a second
+gap renderer, or support for any item kind other than gap.
+
+Acceptance: paste nine sentences and a twelve-entry bank and get a playable pack
+in under five seconds with no model call; the sentence text in the pack is
+character-identical to what was pasted; bank entries that fit no gap arrive as
+distractors; a malformed paste names the offending line and loads nothing.
 ```
 
 ---
