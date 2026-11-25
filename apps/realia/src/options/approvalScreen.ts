@@ -16,7 +16,7 @@ export interface ApprovalHandlers {
   onDiscard: () => void;
 }
 
-const KIND_NAMES: Record<string, string> = { place: "Place", sort: "Sort", gap: "Gaps", match: "Match" };
+const KIND_NAMES: Record<string, string> = { place: "Place", sort: "Sort", gap: "Gaps", match: "Match", infogap: "Info gap" };
 
 function h<K extends keyof HTMLElementTagNameMap>(tag: K, className = "", text = ""): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);

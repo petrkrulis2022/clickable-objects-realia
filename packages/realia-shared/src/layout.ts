@@ -210,7 +210,7 @@ export function itemGeometry(pack: LessonPack, item: PackItem): ItemGeometry {
   const zoneIds = distinct(item.pairs.map((p) => p.zoneId));
   const top = contentTop(pack);
   const n = Math.max(1, zoneIds.length);
-  const labelLengths = itemObjectIds(item).map(
+  const labelLengths = [...itemObjectIds(item), ...(item.reference ?? []).map((r) => r.objectId)].map(
     (id) => (pack.draggables.find((d) => d.id === id)?.label ?? id).length,
   );
   const wanted = chipWidthForLabel(Math.max(0, ...labelLengths));
@@ -225,7 +225,7 @@ export function itemGeometry(pack: LessonPack, item: PackItem): ItemGeometry {
     text = { pos: { x: STAGE_MARGIN, y: top }, size: { w: CONTENT_W, h: GAP_TEXT_H } };
     rects = rowOfRects(n, top + GAP_TEXT_H + ROW_GAP, GAP_SLOT_H, wanted + 2 * SLOT_PAD);
     chipW = Math.min(wanted, rects[0].size.w - 2 * SLOT_PAD);
-  } else if (item.kind === "match") {
+  } else if (item.kind === "match" || item.kind === "infogap") {
     const cols = Math.min(n, MATCH_MAX_COLS);
     const rows = Math.ceil(n / cols);
     const w = (CONTENT_W - (cols - 1) * ROW_GAP) / cols;
@@ -373,6 +373,9 @@ function resolveGeneralItem(pack: LessonPack, item: PackItem): StageObject[] {
   }
 
   // Distractors are mixed in among the right answers, never parked at the end where they'd give themselves away.
+  // In an infogap the loose objects are the student's alone: the teacher
+  // must not see them (or where they go) until the reveal.
+  const studentOnly = item.kind === "infogap";
   const objectIds = shuffleStable(itemObjectIds(item), item.id);
   const tray = trayPositions(objectIds.length, geo.chip);
   objectIds.forEach((id, i) => {
@@ -385,11 +388,31 @@ function resolveGeneralItem(pack: LessonPack, item: PackItem): StageObject[] {
       pos: tray[i],
       size: geo.chip,
       z: 2,
-      draggableBy: "both",
-      visibleTo: "both",
+      draggableBy: studentOnly ? ["student"] : "both",
+      visibleTo: studentOnly ? ["student"] : "both",
       variant: "chip",
     });
   });
+
+  // The teacher's reference arrangement: already in its zones, fixed, and
+  // never sent to the student (the relay filters by visibleTo).
+  for (const r of item.reference ?? []) {
+    const zone = objects.find((o): o is Zone => o.kind === "zone" && o.id === r.zoneId);
+    if (!zone) continue;
+    const def = pack.draggables.find((d) => d.id === r.objectId);
+    objects.push({
+      id: r.objectId,
+      kind: "draggable",
+      label: def?.label ?? r.objectId,
+      ...(def?.emoji ? { emoji: def.emoji } : {}),
+      pos: snapPosition(zone, { size: geo.chip }, 0),
+      size: geo.chip,
+      z: 2,
+      draggableBy: [],
+      visibleTo: ["teacher"],
+      variant: "chip",
+    });
+  }
 
   objects.push(...resolveCards(pack));
   return objects;

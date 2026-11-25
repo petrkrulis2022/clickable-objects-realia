@@ -32,6 +32,8 @@ export const SNAP_EASING = "cubic-bezier(0.2, 0, 0, 1)";
 export const RETURN_MS = 280;
 export const RETURN_SHAKE_PX = 6;
 export const PULSE_MS = 160;
+/** The infogap reveal: all objects, at once (docs/PRD.md, "13."). */
+export const REVEAL_MS = 400;
 export const HELD_SCALE = 1.05;
 export const HELD_SHADOW = "0 10px 24px rgba(0,0,0,0.55)";
 

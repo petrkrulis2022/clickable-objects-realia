@@ -103,6 +103,36 @@ function overlaps(a: StageObject, b: StageObject): boolean {
   return w > OVERLAP_TOLERANCE && h > OVERLAP_TOLERANCE;
 }
 
+/** An infogap's teacher set: one reference object per zone, its label matching the student's object for that zone. */
+function infogapProblems(pack: LessonPack, item: LessonPack["items"][number], where: string, objectIds: Set<string>): string[] {
+  const problems: string[] = [];
+  const reference = item.reference ?? [];
+  if (reference.length === 0) return [`${where} is an infogap activity with no reference arrangement for the teacher`];
+  const studentObjects = new Set(item.pairs.map((p) => p.objectId));
+  const refObjects = new Set(reference.map((r) => r.objectId));
+  if (refObjects.size > MAX_OBJECTS_PER_ITEM) {
+    problems.push(`${where} has ${refObjects.size} objects on the teacher's side (at most ${MAX_OBJECTS_PER_ITEM})`);
+  }
+  if (refObjects.size !== reference.length) problems.push(`${where} lists a reference object twice`);
+  for (const r of reference) {
+    if (!objectIds.has(r.objectId)) problems.push(`${where} reference refers to unknown object "${r.objectId}"`);
+    if (studentObjects.has(r.objectId)) problems.push(`${where} uses "${r.objectId}" on both the teacher's and the student's side`);
+  }
+  const label = new Map(pack.draggables.map((d) => [d.id, d.label.trim().toLowerCase()]));
+  const zones = new Set(item.pairs.map((p) => p.zoneId));
+  const refZones = reference.map((r) => r.zoneId);
+  if (new Set(refZones).size !== refZones.length || refZones.length !== zones.size || refZones.some((z) => !zones.has(z))) {
+    problems.push(`${where} needs exactly one reference object in each of its zones`);
+  }
+  for (const p of item.pairs) {
+    const ref = reference.find((r) => r.zoneId === p.zoneId);
+    if (ref && label.get(ref.objectId) !== label.get(p.objectId)) {
+      problems.push(`${where}: the teacher's "${ref.objectId}" and the student's "${p.objectId}" share a zone but not a label`);
+    }
+  }
+  return problems;
+}
+
 /** Every problem with a pack, in plain language. Empty means it can be loaded. */
 export function validatePack(pack: LessonPack): string[] {
   const problems: string[] = [];
@@ -195,7 +225,7 @@ export function validatePack(pack: LessonPack): string[] {
     else if (itemIds.has(item.id)) problems.push(`${where} id "${item.id}" is used twice`);
     else itemIds.add(item.id);
 
-    if (!["place", "sort", "gap", "match"].includes(item.kind)) {
+    if (!["place", "sort", "gap", "match", "infogap"].includes(item.kind)) {
       problems.push(`${where} has unknown kind "${String(item.kind)}"`);
       return;
     }
@@ -234,7 +264,7 @@ export function validatePack(pack: LessonPack): string[] {
       if (item.pairs.some((p) => p.objectId === d)) problems.push(`${where} lists "${d}" as both an answer and a distractor`);
     }
     if (new Set(distractors).size !== distractors.length) problems.push(`${where} lists a distractor twice`);
-    if (item.kind === "place" || item.kind === "sort") {
+    if (item.kind === "place" || item.kind === "sort" || item.kind === "infogap") {
       if (distractors.length) problems.push(`${where} is a ${item.kind} activity and can't have distractors`);
     }
     if (item.kind === "gap" && distractors.length < 2) {
@@ -247,8 +277,14 @@ export function validatePack(pack: LessonPack): string[] {
       if (answerLabels.has(labelOf.get(d))) problems.push(`${where} distractor "${d}" reads the same as a correct answer`);
     }
 
+    // The 8-object cap is per item for every kind but infogap. An infogap
+    // item holds two sets no one ever sees together, so the cap applies per
+    // role view: the student's set here (pairs), the teacher's below
+    // (reference).
     const itemObjects = new Set([...item.pairs.map((p) => p.objectId), ...distractors]);
     const itemZones = new Set(item.pairs.map((p) => p.zoneId));
+    if (item.kind === "infogap") problems.push(...infogapProblems(pack, item, where, objectIds));
+    else if (item.reference !== undefined) problems.push(`${where} has a reference set, which only an infogap activity has`);
     if (itemObjects.size > MAX_OBJECTS_PER_ITEM) problems.push(`${where} has ${itemObjects.size} objects (at most ${MAX_OBJECTS_PER_ITEM})`);
     if (itemZones.size > MAX_ZONES_PER_ITEM) problems.push(`${where} has ${itemZones.size} zones (at most ${MAX_ZONES_PER_ITEM})`);
 
@@ -267,11 +303,11 @@ export function validatePack(pack: LessonPack): string[] {
       }
     }
     if (item.kind === "sort" && itemZones.size < 2) problems.push(`${where} is a sort with fewer than two bins`);
-    if (item.kind === "match") {
+    if (item.kind === "match" || item.kind === "infogap") {
       const objs = item.pairs.map((p) => p.objectId);
       const zones = item.pairs.map((p) => p.zoneId);
       if (new Set(objs).size !== objs.length || new Set(zones).size !== zones.length) {
-        problems.push(`${where} is a match, so every object and every zone must appear exactly once`);
+        problems.push(`${where} is a ${item.kind}, so every object and every zone must appear exactly once`);
       }
     }
     if (item.kind === "gap" && item.prompt && itemZones.size > 0) {

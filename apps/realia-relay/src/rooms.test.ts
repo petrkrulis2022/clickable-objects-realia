@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { loadValidPack, type LessonPack, type Zone } from "@realia/shared";
 import type { WebSocket } from "ws";
-import { applyDrop, applyMove, joinRoom, leaveRoom, seedInitialItem, type Room } from "./rooms.js";
+import { applyDrop, applyMove, joinRoom, leaveRoom, seedInitialItem, stateFor, type Room } from "./rooms.js";
 
 const PACKS = join(import.meta.dirname, "..", "..", "realia", "public", "packs");
 const demo = (): LessonPack => loadValidPack(JSON.parse(readFileSync(join(PACKS, "demo-modals.json"), "utf8")));
@@ -145,5 +145,78 @@ test("place: the original lesson still snaps the object to the zone's centre", (
 test("the room records which pack it is playing", () => {
   const { room } = newRoom(demo(), 2);
   assert.deepEqual(room.state.activity, { packId: "demo-modals", itemIndex: 2 });
+  close(room);
+});
+
+// --- Infogap: the relay decides who sees what, and the reveal fires once. ---
+
+const TIMETABLE = 3; // the demo pack's infogap item
+const SLOTS: Array<[string, string]> = [
+  ["st-maths", "tt-mon-9"], ["st-history", "tt-mon-11"], ["st-pe", "tt-tue-9"],
+  ["st-art", "tt-tue-11"], ["st-biology", "tt-wed-9"], ["st-music", "tt-wed-11"],
+];
+
+function infogapRoom() {
+  const teacher = fakeWs();
+  const student = fakeWs();
+  const code = `IG${++codeCounter}`;
+  const joined = joinRoom(code, teacher as unknown as WebSocket)!;
+  joinRoom(code, student as unknown as WebSocket);
+  seedInitialItem(joined.room, demo(), TIMETABLE);
+  return { room: joined.room, teacher, student };
+}
+
+function studentDrop(room: Room, ws: FakeWs, objectId: string, zoneId: string) {
+  applyMove(room, "student", objectId, { x: 0.5, y: 0.5 });
+  return applyDrop(room, "student", objectId, zoneId, ws as unknown as WebSocket);
+}
+
+const completes = (ws: FakeWs) => ws.sent.filter((m) => (m as { type: string }).type === "complete");
+
+test("infogap: each role's view of the room holds only its own objects, and no answers", () => {
+  const { room } = infogapRoom();
+  const student = Object.keys(stateFor(room, "student").objects);
+  const teacher = Object.keys(stateFor(room, "teacher").objects);
+  assert.ok(!student.some((id) => id.startsWith("ref-")), "the student's view holds the teacher's set");
+  assert.ok(!teacher.some((id) => id.startsWith("st-")), "the teacher's view holds the student's set");
+  for (const role of ["student", "teacher"] as const) {
+    const zones = Object.values(stateFor(room, role).objects).filter((o) => o.kind === "zone") as Zone[];
+    assert.ok(zones.every((z) => z.accepts.length === 0), `${role}'s zones carry the answer list`);
+  }
+  close(room);
+});
+
+test("infogap: the teacher can't move the student's objects, and the student can't move the teacher's", () => {
+  const { room } = infogapRoom();
+  const before = JSON.stringify(room.state.objects);
+  applyMove(room, "teacher", "st-maths", { x: 0.1, y: 0.1 });
+  applyMove(room, "student", "ref-maths", { x: 0.1, y: 0.1 });
+  assert.equal(JSON.stringify(room.state.objects), before);
+  close(room);
+});
+
+test("infogap: the reveal fires once, and only when every placement matches", () => {
+  const { room, teacher, student } = infogapRoom();
+  studentDrop(room, student, "st-maths", "tt-mon-11"); // wrong slot
+  for (const [obj, zone] of SLOTS.slice(0, 5)) studentDrop(room, student, obj, zone);
+  assert.equal(completes(teacher).length + completes(student).length, 0, "no reveal at five of six");
+  assert.ok(
+    teacher.sent.every((m) => !JSON.stringify(m).includes('"st-')),
+    "the teacher was sent a student object before the reveal",
+  );
+
+  studentDrop(room, student, ...SLOTS[5]);
+  assert.equal(completes(teacher).length, 1);
+  assert.equal(completes(student).length, 1);
+  // Both now see the same stage: the student's objects, and no reference set.
+  const reveal = teacher.sent.findLast((m) => (m as { type: string }).type === "patch") as { changed: { id: string }[]; removed: string[] };
+  assert.deepEqual(reveal.changed.map((o) => o.id).sort(), SLOTS.map(([o]) => o).sort());
+  assert.deepEqual(reveal.removed.sort(), SLOTS.map(([o]) => o.replace("st-", "ref-")).sort());
+  assert.ok(student.sent.every((m) => !JSON.stringify(m).includes('"ref-')), "the student was told the teacher's ids");
+  assert.deepEqual(Object.keys(stateFor(room, "teacher").objects).sort(), Object.keys(stateFor(room, "student").objects).sort());
+
+  // Moving an object out and back does not fire it again.
+  studentDrop(room, student, ...SLOTS[0]);
+  assert.equal(completes(teacher).length, 1);
   close(room);
 });

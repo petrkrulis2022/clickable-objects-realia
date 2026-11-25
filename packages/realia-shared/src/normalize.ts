@@ -103,6 +103,9 @@ export function normalizePack(raw: unknown): LessonPack {
       pairs,
     };
     if (Array.isArray(it.distractors)) item.distractors = it.distractors.map(str);
+    if (Array.isArray(it.reference)) {
+      item.reference = it.reference.filter(isRecord).map((p) => ({ objectId: str(p.objectId), zoneId: str(p.zoneId) }));
+    }
     if (optStr(it.feedback)) item.feedback = optStr(it.feedback);
     if (optStr(it.backdrop)) item.backdrop = optStr(it.backdrop);
     if (optStr(it.source)) item.source = optStr(it.source);

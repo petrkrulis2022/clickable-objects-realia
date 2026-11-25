@@ -109,7 +109,11 @@ export type ServerMessage =
   // (see LessonEvent below) but, per the PRD, never enters synced
   // RoomState — this is a lightweight, teacher-only notification of it,
   // outside the rev/patch reconciliation system entirely.
-  | { type: "revealProgress"; cardId: string; stage: 1 | 2 | 3; role: Role };
+  | { type: "revealProgress"; cardId: string; stage: 1 | 2 | 3; role: Role }
+  // An infogap item was completed: every placement matches the teacher's
+  // reference, and both sides now see the same stage. Sent once, right
+  // after the patch that reveals it; clients animate the reveal.
+  | { type: "complete"; itemId: string };
 
 // The event log is appended on the relay, never on the client, so a
 // refresh cannot lose a lesson.
@@ -177,8 +181,12 @@ export interface PackCard {
  *  - sort:  many objects, a few bins; several pairs share a zoneId
  *  - gap:   objects into numbered gaps in a displayed text (also word order, timelines)
  *  - match: one-to-one pairing
+ *  - infogap: an information gap. The teacher sees a reference
+ *    arrangement (`reference`), the student sees loose objects (`pairs`),
+ *    and neither sees the other's set until every placement matches.
+ *    Not `gap`: that is fill-in-the-blank, a different mechanic.
  */
-export type ItemKind = "place" | "sort" | "gap" | "match";
+export type ItemKind = "place" | "sort" | "gap" | "match" | "infogap";
 
 export interface PackPair {
   objectId: string;
@@ -197,6 +205,12 @@ export interface PackItem {
    * answer goes in by elimination, with no English involved.
    */
   distractors?: string[];
+  /**
+   * infogap only: the teacher's arrangement — teacher-only objects shown
+   * already in their zones. `pairs` holds the student's objects and where
+   * they belong; each zone has one of each, with the same label.
+   */
+  reference?: PackPair[];
   backdrop?: string; // key into pack.backdrops; omit to keep current
   /** Teacher-facing: which coursebook exercise this came from, e.g. "Grammar 1a". */
   source?: string;

@@ -16,6 +16,7 @@ import {
   OBJECT_MIN_SIZE_PX,
   OBJECT_RADIUS_PX,
   OBJECT_SHADOW,
+  REVEAL_MS,
   SCRIM_COLOR,
   SCRIM_FEATHER_PX,
   SENTENCE_FONT_SIZE_PX,
@@ -238,6 +239,8 @@ export interface OverlayHandle {
   setCardReveal(cardId: string, stage: 0 | 1 | 2 | 3): void;
   /** Teacher-only: how far the student has revealed this card. */
   setCardPeerProgress(cardId: string, stage: 0 | 1 | 2 | 3): void;
+  /** The infogap reveal: every object on the stage, at once, over REVEAL_MS. */
+  playReveal(): void;
   /** Reserves space on the left for the teacher panel so the stage never overlaps it. */
   setLeftInset(px: number): void;
   onResize(cb: (stage: StageRect) => void): void;
@@ -503,6 +506,18 @@ export function mountOverlay(): OverlayHandle {
     dots.forEach((dot, i) => dot.classList.toggle("co-dot-filled", i < stage));
   }
 
+  function playReveal() {
+    for (const el of objectEls.values()) {
+      el.animate(
+        [
+          { opacity: 0.35, transform: "scale(0.94)" },
+          { opacity: 1, transform: "scale(1)" },
+        ],
+        { duration: REVEAL_MS, easing: "cubic-bezier(0.2, 0, 0, 1)" },
+      );
+    }
+  }
+
   return {
     root,
     stageEl,
@@ -515,6 +530,7 @@ export function mountOverlay(): OverlayHandle {
     setSentence,
     setCardReveal,
     setCardPeerProgress,
+    playReveal,
     setLeftInset,
     onResize: (cb) => resizeCbs.push(cb),
     destroy: () => {

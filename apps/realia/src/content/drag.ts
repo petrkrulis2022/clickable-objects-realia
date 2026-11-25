@@ -91,6 +91,7 @@ export function attachDragController(opts: DragControllerOptions): DragControlle
     const obj = findObject(id);
     if (!obj) return;
     if (obj.heldBy && obj.heldBy !== myRole) return; // the other role already has it
+    if (obj.draggableBy !== "both" && !obj.draggableBy.includes(myRole)) return; // not this role's to move (the relay would refuse it)
 
     e.preventDefault();
     el.setPointerCapture(e.pointerId);

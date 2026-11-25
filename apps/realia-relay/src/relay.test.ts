@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import WebSocket from "ws";
-import type { ServerMessage } from "@realia/shared";
+import { loadValidPack, resolveItem, type ServerMessage } from "@realia/shared";
 
 type StateMsg = Extract<ServerMessage, { type: "state" }>;
 type VerdictMsg = Extract<ServerMessage, { type: "verdict" }>;
@@ -201,4 +201,71 @@ test("POST /packs stores an approved pack with its audio and plan, and serves th
   const missingAudio = demoPackWithId("lesson-test-2");
   missingAudio.cards[0].audio = { normal: "/packs/lesson-test-2/audio/nope-normal.mp3", slow: "/packs/lesson-test-2/audio/nope-slow.mp3" };
   assert.equal((await postPack({ pack: missingAudio })).status, 422, "a pack cannot point at audio that does not exist");
+});
+
+/** A socket that keeps every frame it receives, raw, exactly as it arrived. */
+async function loggingClient() {
+  const c = await client();
+  const frames: string[] = [];
+  c.ws.on("message", (raw) => frames.push(raw.toString()));
+  return { ...c, frames };
+}
+
+test("no teacher-only object ever reaches the student, across a whole pack played end to end", async () => {
+  const pack = loadValidPack(JSON.parse(readFileSync(join(PACKS, "demo-modals.json"), "utf8")));
+  const resolved = pack.items.map((_, i) => resolveItem(pack, i).objects);
+  const teacherOnly = new Set(resolved.flat().filter((o) => o.visibleTo !== "both" && !o.visibleTo.includes("student")).map((o) => o.id));
+  const studentOnly = new Set(resolved.flat().filter((o) => o.visibleTo !== "both" && !o.visibleTo.includes("teacher")).map((o) => o.id));
+  assert.ok(teacherOnly.size > 0 && studentOnly.size > 0, "the pack must contain private objects for this test to mean anything");
+
+  const code = "LEAK01";
+  const teacher = await loggingClient();
+  teacher.send({ type: "join", code, packId: "demo-modals" });
+  await teacher.waitFor((m) => m.type === "state");
+  const student = await loggingClient();
+  student.send({ type: "join", code });
+  await student.waitFor((m) => m.type === "state");
+
+  // Every item in turn, the student dropping a chip in each.
+  for (let i = 0; i < pack.items.length; i++) {
+    if (i > 0) {
+      teacher.send({ type: "setActivity", packId: "demo-modals", itemIndex: i });
+      await student.waitFor((m) => m.type === "patch" && m.changed.some((o) => o.id === resolved[i].find((x) => x.kind === "zone")!.id));
+    }
+    const { objectId, zoneId } = pack.items[i].pairs[0];
+    student.send({ type: "move", id: objectId, pos: { x: 0.5, y: 0.5 } });
+    student.send({ type: "drop", id: objectId, zoneId });
+    await student.waitFor((m) => m.type === "verdict" && m.id === objectId);
+  }
+  // The infogap, last: one wrong placement, then all six right.
+  const slots = pack.items[3].pairs;
+  student.send({ type: "move", id: slots[0].objectId, pos: { x: 0.5, y: 0.5 } });
+  student.send({ type: "drop", id: slots[0].objectId, zoneId: slots[1].zoneId });
+  for (const p of slots) {
+    student.send({ type: "move", id: p.objectId, pos: { x: 0.5, y: 0.5 } });
+    student.send({ type: "drop", id: p.objectId, zoneId: p.zoneId });
+  }
+  await student.waitFor((m) => m.type === "complete");
+  await teacher.waitFor((m) => m.type === "complete");
+
+  const objectIdsIn = (frame: string): string[] => {
+    const m = JSON.parse(frame) as ServerMessage;
+    if (m.type === "state") return Object.values(m.state.objects).map((o) => o.id);
+    if (m.type === "patch") return [...m.changed.map((o) => o.id), ...m.removed];
+    return [];
+  };
+  for (const frame of student.frames) {
+    for (const id of objectIdsIn(frame)) assert.ok(!teacherOnly.has(id), `student received teacher-only "${id}": ${frame.slice(0, 200)}`);
+    for (const id of teacherOnly) assert.ok(!frame.includes(`"${id}"`), `student frame mentions "${id}"`);
+    assert.ok(!/"accepts":\["st-/.test(frame), "student received the infogap's answer list");
+  }
+  const revealAt = teacher.frames.findIndex((f) => f.includes('"type":"complete"'));
+  for (const frame of teacher.frames.slice(0, revealAt - 1)) {
+    for (const id of studentOnly) assert.ok(!frame.includes(`"${id}"`), `teacher received student-only "${id}" before the reveal`);
+  }
+  assert.equal(student.frames.filter((f) => f.includes('"type":"complete"')).length, 1);
+  assert.equal(teacher.frames.filter((f) => f.includes('"type":"complete"')).length, 1);
+
+  teacher.ws.close();
+  student.ws.close();
 });

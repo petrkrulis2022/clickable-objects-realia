@@ -106,6 +106,10 @@ export function startSession(code: string): Session {
         case "revealProgress":
           overlay.setCardPeerProgress(msg.cardId, msg.stage);
           break;
+        case "complete":
+          // Arrives right after the patch that put the full stage in front of both people.
+          overlay.playReveal();
+          break;
       }
     }
 

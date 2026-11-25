@@ -17,6 +17,7 @@ import {
   joinRoom,
   leaveRoom,
   seedInitialItem,
+  stateFor,
   type Room,
 } from "./rooms.js";
 
@@ -279,7 +280,7 @@ export function createRelay(opts: RelayOptions) {
           events.append(msg.code, { t: Date.now(), type: "item", index: 0, prompt });
         }
 
-        ws.send(JSON.stringify({ type: "state", state: joined.room.state, yourRole: joined.role }));
+        ws.send(JSON.stringify({ type: "state", state: stateFor(joined.room, joined.role), yourRole: joined.role }));
         broadcast(joined.room, joined.role, { type: "peer", role: joined.role, connected: true });
         return;
       }

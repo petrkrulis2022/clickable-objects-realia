@@ -350,6 +350,78 @@ test("distractors count towards the 8-object limit", () => {
   expectProblem(p, /at most 8/);
 });
 
+// --- Infogap: two private sets, one shared set of zones. ---
+
+const INFOGAP = 3; // the demo pack's timetable
+
+test("infogap: the student's objects are the student's alone, the teacher's sit in their zones, the zones are shared", () => {
+  const pack = loadValidPack(demoRaw());
+  const { objects } = resolveItem(pack, INFOGAP);
+  const student = objects.filter((o) => o.id.startsWith("st-"));
+  const teacher = objects.filter((o) => o.id.startsWith("ref-"));
+  assert.equal(student.length, 6);
+  assert.equal(teacher.length, 6);
+  assert.ok(student.every((o) => JSON.stringify(o.visibleTo) === '["student"]' && JSON.stringify(o.draggableBy) === '["student"]'));
+  assert.ok(teacher.every((o) => JSON.stringify(o.visibleTo) === '["teacher"]' && JSON.stringify(o.draggableBy) === "[]"));
+  const zones = zonesOf(objects);
+  assert.ok(zones.length === 6 && zones.every((z) => z.visibleTo === "both"));
+  // Each teacher object is placed inside its zone: the filled timetable.
+  for (const r of pack.items[INFOGAP].reference!) {
+    const obj = objects.find((o) => o.id === r.objectId)!;
+    const zone = zones.find((z) => z.id === r.zoneId)!;
+    assert.ok(obj.pos.x >= zone.pos.x && obj.pos.y >= zone.pos.y && obj.pos.y + obj.size.h <= zone.pos.y + zone.size.h + 1e-9);
+  }
+});
+
+test("infogap: the 8-object cap applies per role view, not per item", () => {
+  const p = demo();
+  const item = p.items[INFOGAP];
+  // 6 + 6 = 12 objects in the item, but neither person sees more than 6: valid.
+  assert.deepEqual(validatePack(p), []);
+  // 9 on the student's side is over the cap.
+  for (let i = 0; i < 3; i++) {
+    p.draggables.push({ id: `st-x${i}`, label: `x${i}` }, { id: `ref-x${i}`, label: `x${i}` });
+    p.zones.push({ id: `tt-x${i}`, label: `slot ${i}` });
+    item.pairs.push({ objectId: `st-x${i}`, zoneId: `tt-x${i}` });
+    item.reference!.push({ objectId: `ref-x${i}`, zoneId: `tt-x${i}` });
+  }
+  expectProblem(p, /has 9 objects \(at most 8\)/);
+});
+
+test("the cap is unchanged for every other kind: 12 objects in a match is still too many", () => {
+  const p = demo();
+  for (let i = 0; i < 9; i++) p.draggables.push({ id: `m-${i}`, label: `m${i}` });
+  p.items[2].pairs.push(...[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => ({ objectId: `m-${i}`, zoneId: "match-bus" })));
+  expectProblem(p, /has 12 objects \(at most 8\)/);
+});
+
+test("infogap: rejects a missing reference, a label mismatch, a shared object, and a reference on another kind", () => {
+  const noRef = demo();
+  delete noRef.items[INFOGAP].reference;
+  expectProblem(noRef, /no reference arrangement/);
+
+  const mismatch = demo();
+  mismatch.items[INFOGAP].reference![0].objectId = "ref-music";
+  expectProblem(mismatch, /share a zone but not a label/);
+
+  const shared = demo();
+  shared.items[INFOGAP].reference![0].objectId = "st-maths";
+  expectProblem(shared, /both the teacher's and the student's side/);
+
+  const elsewhere = demo();
+  elsewhere.items[0].reference = [{ objectId: "ref-maths", zoneId: "bin-forbidden" }];
+  expectProblem(elsewhere, /only an infogap activity has/);
+});
+
+test("infogap: no distractors, and every slot needs its one reference object", () => {
+  const p = demo();
+  p.items[INFOGAP].distractors = ["must-to"];
+  expectProblem(p, /infogap activity and can't have distractors/);
+  const q = demo();
+  q.items[INFOGAP].reference!.pop();
+  expectProblem(q, /exactly one reference object in each of its zones/);
+});
+
 test("binCapacity counts a grid of chips", () => {
   assert.deepEqual(binCapacity({ w: 0.45, h: 0.49 }, { w: 0.2, h: 0.08 }), { cols: 2, rows: 4 });
 });

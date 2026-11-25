@@ -1,6 +1,6 @@
 {
   "id": "demo-modals",
-  "title": "Demo: modals of obligation (sort, gap, match)",
+  "title": "Demo: modals (sort, gap, match) and a timetable infogap",
   "translationLang": "cs",
   "scenery": [],
   "backdrops": {},
@@ -53,6 +53,66 @@
     {
       "id": "dont-must",
       "label": "don't must"
+    },
+    {
+      "id": "ref-maths",
+      "label": "maths",
+      "emoji": "📐"
+    },
+    {
+      "id": "ref-history",
+      "label": "history",
+      "emoji": "📜"
+    },
+    {
+      "id": "ref-pe",
+      "label": "PE",
+      "emoji": "⚽"
+    },
+    {
+      "id": "ref-art",
+      "label": "art",
+      "emoji": "🎨"
+    },
+    {
+      "id": "ref-biology",
+      "label": "biology",
+      "emoji": "🧬"
+    },
+    {
+      "id": "ref-music",
+      "label": "music",
+      "emoji": "🎵"
+    },
+    {
+      "id": "st-maths",
+      "label": "maths",
+      "emoji": "📐"
+    },
+    {
+      "id": "st-history",
+      "label": "history",
+      "emoji": "📜"
+    },
+    {
+      "id": "st-pe",
+      "label": "PE",
+      "emoji": "⚽"
+    },
+    {
+      "id": "st-art",
+      "label": "art",
+      "emoji": "🎨"
+    },
+    {
+      "id": "st-biology",
+      "label": "biology",
+      "emoji": "🧬"
+    },
+    {
+      "id": "st-music",
+      "label": "music",
+      "emoji": "🎵"
     }
   ],
   "zones": [
@@ -95,6 +155,30 @@
     {
       "id": "match-bus",
       "label": "My bus leaves in two minutes!"
+    },
+    {
+      "id": "tt-mon-9",
+      "label": "Monday 9:00"
+    },
+    {
+      "id": "tt-mon-11",
+      "label": "Monday 11:00"
+    },
+    {
+      "id": "tt-tue-9",
+      "label": "Tuesday 9:00"
+    },
+    {
+      "id": "tt-tue-11",
+      "label": "Tuesday 11:00"
+    },
+    {
+      "id": "tt-wed-9",
+      "label": "Wednesday 9:00"
+    },
+    {
+      "id": "tt-wed-11",
+      "label": "Wednesday 11:00"
     }
   ],
   "cards": [
@@ -202,6 +286,65 @@
         {
           "objectId": "advice-run",
           "zoneId": "match-bus"
+        }
+      ]
+    },
+    {
+      "id": "infogap-timetable",
+      "kind": "infogap",
+      "source": "demo",
+      "prompt": "Describe your timetable. Your student builds it from what you say.",
+      "feedback": "",
+      "pairs": [
+        {
+          "objectId": "st-maths",
+          "zoneId": "tt-mon-9"
+        },
+        {
+          "objectId": "st-history",
+          "zoneId": "tt-mon-11"
+        },
+        {
+          "objectId": "st-pe",
+          "zoneId": "tt-tue-9"
+        },
+        {
+          "objectId": "st-art",
+          "zoneId": "tt-tue-11"
+        },
+        {
+          "objectId": "st-biology",
+          "zoneId": "tt-wed-9"
+        },
+        {
+          "objectId": "st-music",
+          "zoneId": "tt-wed-11"
+        }
+      ],
+      "reference": [
+        {
+          "objectId": "ref-maths",
+          "zoneId": "tt-mon-9"
+        },
+        {
+          "objectId": "ref-history",
+          "zoneId": "tt-mon-11"
+        },
+        {
+          "objectId": "ref-pe",
+          "zoneId": "tt-tue-9"
+        },
+        {
+          "objectId": "ref-art",
+          "zoneId": "tt-tue-11"
+        },
+        {
+          "objectId": "ref-biology",
+          "zoneId": "tt-wed-9"
+        },
+        {
+          "objectId": "ref-music",
+          "zoneId": "tt-wed-11"
         }
       ]
     }
