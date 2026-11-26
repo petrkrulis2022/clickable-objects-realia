@@ -9,6 +9,7 @@ import type {
   ResolvedItem,
   Size,
   StageObject,
+  TeacherLesson,
   Vec,
   Zone,
 } from "./types.js";
@@ -353,7 +354,6 @@ function resolveGeneralItem(pack: LessonPack, item: PackItem): StageObject[] {
       accepts: distinct(item.pairs.filter((p) => p.zoneId === zoneId).map((p) => p.objectId)),
       relation: def?.relation ?? "",
       variant,
-      ...(item.feedback ? { feedback: item.feedback } : {}),
     };
     objects.push(zone);
   }
@@ -431,4 +431,62 @@ export function resolveItem(pack: LessonPack, itemIndex: number): ResolvedItem {
   const objects = item.kind === "place" ? resolvePlaceItem(pack, item) : resolveGeneralItem(pack, item);
   const backdrop: Backdrop | null | undefined = item.backdrop ? (pack.backdrops[item.backdrop] ?? null) : undefined;
   return { objects, backdrop, prompt: item.prompt };
+}
+
+// --- What the relay tells people, built from the pack it holds. ---
+
+/**
+ * zone id -> the label to slot into sentenceTemplate's {anchor}, from the
+ * pack's own scenery labels. "both" (between_chair_table) is the table
+ * and the chair — the same two anchorCenter positions the zone between.
+ * (The original client took the first two scenery labels, which in the
+ * shipped pack are the table and the box.)
+ */
+export function buildZoneAnchorLabel(pack: LessonPack): Record<string, string> {
+  const bySceneryId = new Map(pack.scenery.map((s) => [s.id, s.label]));
+  const out: Record<string, string> = {};
+  for (const z of pack.zones) {
+    if (z.anchor === undefined) continue;
+    out[z.id] =
+      z.anchor === "both"
+        ? `${bySceneryId.get("table") ?? "table"} and ${bySceneryId.get("chair") ?? "chair"}`
+        : (bySceneryId.get(z.anchor) ?? z.anchor);
+  }
+  return out;
+}
+
+/**
+ * What appears under the stage after a correct drop: a place zone's
+ * sentence from the template ("The keys are on the table."), exactly as
+ * the client used to build it; otherwise the item's feedback line, if any.
+ * Built on the relay, so no client needs the pack to show it.
+ */
+export function correctDropText(pack: LessonPack, item: PackItem, zone: Zone, placed: StageObject): string | undefined {
+  if (item.kind !== "place") return item.feedback || undefined;
+  if (!zone.relation || !pack.sentenceTemplate) return undefined;
+  return pack.sentenceTemplate
+    .replace("{object}", placed.label)
+    .replace("{relation}", zone.relation)
+    .replace("{anchor}", buildZoneAnchorLabel(pack)[zone.id] ?? zone.relation);
+}
+
+/** The teacher panel's view of a pack: prompts and the answer key. Sent to the teacher only. */
+export function teacherLesson(pack: LessonPack): TeacherLesson {
+  const objectLabel = new Map(pack.draggables.map((d) => [d.id, d.label]));
+  const zoneLabel = new Map(pack.zones.map((z) => [z.id, z.label]));
+  return {
+    packId: pack.id,
+    title: pack.title,
+    items: pack.items.map((item) => ({
+      id: item.id,
+      kind: item.kind,
+      prompt: item.prompt,
+      ...(item.source ? { source: item.source } : {}),
+      key: item.pairs.map((p) => {
+        const zone = zoneLabel.get(p.zoneId) ?? p.zoneId;
+        return `${objectLabel.get(p.objectId) ?? p.objectId} → ${item.kind === "gap" ? `[${zone}]` : zone}`;
+      }),
+      wrong: (item.distractors ?? []).map((d) => objectLabel.get(d) ?? d),
+    })),
+  };
 }

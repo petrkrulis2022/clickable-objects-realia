@@ -1,4 +1,4 @@
-import type { LessonPack } from "@realia/shared";
+import { teacherLesson, type LessonPack } from "@realia/shared";
 import { setSelectedPackId } from "../content/pack";
 import { recordCardAudio, regenerateActivity, savePack, type DraftLesson, type LessonBrief } from "./api";
 import { renderServiceError } from "./errors";
@@ -25,19 +25,12 @@ function h<K extends keyof HTMLElementTagNameMap>(tag: K, className = "", text =
   return node;
 }
 
-/** The answers the relay will accept for one activity — read off the pack itself, so it can't disagree with what's played. */
+/** The answers the relay will accept for one activity — the same key the teacher panel gets, built by the same function. */
 function answerKey(pack: LessonPack, itemIndex: number): HTMLElement {
-  const item = pack.items[itemIndex];
-  const objectLabel = new Map(pack.draggables.map((d) => [d.id, d.label]));
-  const zoneLabel = new Map(pack.zones.map((z) => [z.id, z.label]));
+  const item = teacherLesson(pack).items[itemIndex];
   const list = h("ul", "co-key-list");
-  for (const p of item.pairs) {
-    const zone = zoneLabel.get(p.zoneId) ?? p.zoneId;
-    list.appendChild(h("li", "", `${objectLabel.get(p.objectId) ?? p.objectId} → ${item.kind === "gap" ? `[${zone}]` : zone}`));
-  }
-  if (item.distractors?.length) {
-    list.appendChild(h("li", "co-key-wrong", `wrong everywhere: ${item.distractors.map((d) => objectLabel.get(d) ?? d).join(", ")}`));
-  }
+  for (const line of item.key) list.appendChild(h("li", "", line));
+  if (item.wrong.length) list.appendChild(h("li", "co-key-wrong", `wrong everywhere: ${item.wrong.join(", ")}`));
   return list;
 }
 

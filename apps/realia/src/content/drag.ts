@@ -17,16 +17,14 @@ export interface DragControllerOptions {
   overlay: OverlayHandle;
   /** Mutable model, shared with whatever applies incoming server patches. */
   objects: StageObject[];
-  /** The room's pack's sentence template and zone id -> anchor label, read at drop time (the pack loads after joining). */
-  getSentenceContext: () => { template: string; zoneAnchorLabel: Record<string, string> };
   sendMove: (id: string, pos: Vec) => void;
   sendDrop: (id: string, zoneId: string | null) => void;
 }
 
 export interface DragController {
   setMyRole(role: Role): void;
-  /** A verdict for a drop this client made; the matching patch (right behind it) triggers the animation. */
-  onVerdict(id: string, zoneId: string, correct: boolean): void;
+  /** A verdict for a drop this client made; the matching patch (right behind it) triggers the animation. `feedback` is the relay's sentence or feedback line. */
+  onVerdict(id: string, zoneId: string, correct: boolean, feedback?: string): void;
   /** Reconciles an incoming patch into the shared model, per the PRD's optimistic-local / reconcile-on-patch rule. */
   applyRemotePatch(changed: StageObject[], removed: string[]): void;
   destroy(): void;
@@ -50,10 +48,10 @@ function centerPx(stage: StageRect, obj: StageObject) {
  * never decides correct/incorrect itself.
  */
 export function attachDragController(opts: DragControllerOptions): DragController {
-  const { overlay, objects, getSentenceContext, sendMove, sendDrop } = opts;
+  const { overlay, objects, sendMove, sendDrop } = opts;
 
   let myRole: Role | null = null;
-  const pendingVerdicts = new Map<string, { zoneId: string; correct: boolean }>();
+  const pendingVerdicts = new Map<string, { zoneId: string; correct: boolean; feedback?: string }>();
 
   function findObject(id: string): StageObject | undefined {
     return objects.find((o) => o.id === id);
@@ -104,13 +102,13 @@ export function attachDragController(opts: DragControllerOptions): DragControlle
     lastMoveSentAt = 0;
     el.classList.add("co-held");
 
-    // The original place zones appear while dragging, as they always
-    // have. Bins and slots are always visible and are never
-    // highlighted: lighting up the zones that accept this object would
-    // hand the student the answer to a sort, gap or match.
-    const acceptingZoneIds = new Set(
-      getZones().filter((z) => !z.variant && z.accepts.includes(id)).map((z) => z.id),
-    );
+    // The original place zones appear while an object is held. The
+    // client no longer knows which object a zone accepts (no answer list
+    // ever reaches a browser), so the place item's zone appears for any
+    // held object — it used to appear only for the right one, which told
+    // the student which object was right. Bins and slots are always
+    // visible and never highlighted.
+    const acceptingZoneIds = new Set(getZones().filter((z) => !z.variant).map((z) => z.id));
     overlay.setZoneHighlight(acceptingZoneIds);
     overlay.setSentence(null);
 
@@ -204,11 +202,11 @@ export function attachDragController(opts: DragControllerOptions): DragControlle
     draggingPointerId = null;
   }
 
-  function onVerdict(id: string, zoneId: string, correct: boolean) {
-    pendingVerdicts.set(id, { zoneId, correct });
+  function onVerdict(id: string, zoneId: string, correct: boolean, feedback?: string) {
+    pendingVerdicts.set(id, { zoneId, correct, feedback });
   }
 
-  function animateVerdict(incoming: StageObject, verdict: { zoneId: string; correct: boolean }) {
+  function animateVerdict(incoming: StageObject, verdict: { zoneId: string; correct: boolean; feedback?: string }) {
     const current = findObject(incoming.id);
     const el = overlay.getObjectEl(incoming.id);
     if (!current || !el) {
@@ -223,8 +221,8 @@ export function attachDragController(opts: DragControllerOptions): DragControlle
         replaceObject(incoming);
         overlay.setObjects(objects);
         pulse(el);
-        const zone = getZones().find((z) => z.id === verdict.zoneId);
-        if (zone) overlay.setSentence(correctPlacementText(zone, incoming));
+        // Built on the relay: the place sentence, or the activity's feedback line.
+        overlay.setSentence(verdict.feedback ?? null);
       });
     } else {
       animateMove(
@@ -241,22 +239,6 @@ export function attachDragController(opts: DragControllerOptions): DragControlle
         true,
       );
     }
-  }
-
-  /**
-   * What appears under the stage after a correct placement: a place
-   * zone builds its sentence from the pack's template, exactly as
-   * before ("The keys are under the table."); a sort, gap or match
-   * zone shows its activity's feedback line, if it has one.
-   */
-  function correctPlacementText(zone: Zone, placed: StageObject): string | null {
-    if (zone.feedback) return zone.feedback;
-    const { template, zoneAnchorLabel } = getSentenceContext();
-    if (!zone.relation || !template) return null;
-    return template
-      .replace("{object}", placed.label)
-      .replace("{relation}", zone.relation)
-      .replace("{anchor}", zoneAnchorLabel[zone.id] ?? zone.relation);
   }
 
   function applyRemotePatch(changed: StageObject[], removed: string[]) {

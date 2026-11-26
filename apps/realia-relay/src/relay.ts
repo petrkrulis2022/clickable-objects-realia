@@ -17,6 +17,7 @@ import {
   joinRoom,
   leaveRoom,
   seedInitialItem,
+  sendLesson,
   stateFor,
   type Room,
 } from "./rooms.js";
@@ -39,12 +40,19 @@ export interface RelayOptions {
 }
 
 /**
- * Who may call the relay's HTTP API from a browser: the extension's
- * own pages (options page) and the content script running on Meet.
- * Not any other website — otherwise any page the teacher has open
- * could read packs and plans off localhost, or write packs into it.
+ * Who may call the relay's HTTP API from a browser: the extension's own
+ * pages (the options page and popup) and nothing else. Not Meet: the
+ * content script plays from the WebSocket alone and never fetches a pack,
+ * because a pack holds every answer. Not any other website either, or any
+ * page the teacher has open could read packs and plans off the relay.
+ * (Audio files play through <audio>, which needs no CORS.)
+ *
+ * CORS keeps other pages' scripts out; it is not authentication. Anyone
+ * who can reach the relay and knows a pack id can still open
+ * /packs/<id> directly. Deployed beyond localhost, that route needs a
+ * teacher credential.
  */
-const ALLOWED_ORIGIN_RE = /^(chrome-extension:\/\/[a-p]{32}|https:\/\/meet\.google\.com)$/;
+const ALLOWED_ORIGIN_RE = /^chrome-extension:\/\/[a-p]{32}$/;
 const MAX_BODY_BYTES = 25 * 1024 * 1024; // a pack plus its mp3s, base64
 
 class HttpError extends Error {
@@ -281,6 +289,7 @@ export function createRelay(opts: RelayOptions) {
         }
 
         ws.send(JSON.stringify({ type: "state", state: stateFor(joined.room, joined.role), yourRole: joined.role }));
+        if (joined.role === "teacher") sendLesson(joined.room);
         broadcast(joined.room, joined.role, { type: "peer", role: joined.role, connected: true });
         return;
       }
@@ -308,8 +317,10 @@ export function createRelay(opts: RelayOptions) {
             break;
           }
           if (msg.itemIndex < 0 || msg.itemIndex >= pack.items.length) break;
+          const packChanged = session.room.pack?.id !== pack.id;
           const event = applySetActivity(session.room, session.role, pack, msg.itemIndex);
           if (event) events.append(session.code, event);
+          if (event && packChanged) sendLesson(session.room);
           break;
         }
         case "mark": {

@@ -1,5 +1,7 @@
 import {
+  correctDropText,
   resolveItem,
+  teacherLesson,
   snapPosition,
   zoneCapacity,
   type LessonEvent,
@@ -36,6 +38,8 @@ export interface Room {
   itemStartedAt: number;
   /** Guards leaveRoom against firing "session end" twice — see its comment. */
   ended: boolean;
+  /** The pack being played. Only the relay holds it; clients get their role's view of it. */
+  pack: LessonPack | null;
   /** The pack item on the stage now — the relay needs its kind and answers, not just its index. */
   currentItem: PackItem | null;
   /** An infogap's reveal has happened. It fires once per item. */
@@ -70,6 +74,7 @@ export function joinRoom(
       placements: new Map(),
       itemStartedAt: now,
       ended: false,
+      pack: null,
       currentItem: null,
       completed: false,
     };
@@ -140,15 +145,21 @@ function canDrag(obj: StageObject, role: Role): boolean {
 }
 
 /**
- * What `role` may receive of `obj`, or null. An infogap zone also loses
- * its `accepts` list: which loose object belongs in which slot IS the
- * teacher's information, so it stays on the relay, which is the only
- * thing that judges a drop anyway.
+ * What `role` may receive of `obj`, or null. Every zone also loses its
+ * `accepts` list, for every kind: an answer list in a browser is an
+ * answer key in a browser, and no client needs one — the relay judges
+ * every drop. The teacher's key arrives separately, through the role
+ * filter (sendLesson).
  */
-function viewFor(room: Room, obj: StageObject, role: Role): StageObject | null {
+function viewFor(_room: Room, obj: StageObject, role: Role): StageObject | null {
   if (!canSee(obj, role)) return null;
-  if (obj.kind === "zone" && room.currentItem?.kind === "infogap") return { ...(obj as Zone), accepts: [] } as Zone;
+  if (obj.kind === "zone") return { ...(obj as Zone), accepts: [] } as Zone;
   return obj;
+}
+
+/** The teacher panel's prompts and answer key, to the teacher alone. Nothing pack-level ever goes to the student. */
+export function sendLesson(room: Room) {
+  if (room.pack) send(room.connections.teacher, { type: "lesson", lesson: teacherLesson(room.pack) });
 }
 
 /** The room state as `role` is allowed to see it. */
@@ -279,7 +290,9 @@ export function applyDrop(
   obj.heldBy = null;
 
   bumpAndBroadcastPatch(room, obj);
-  send(ws, { type: "verdict", id, zoneId: zoneId ?? "", correct });
+  // The sentence or feedback line is built here, so no client needs the pack to show it.
+  const feedback = correct && room.pack && room.currentItem ? correctDropText(room.pack, room.currentItem, zone!, obj) : undefined;
+  send(ws, { type: "verdict", id, zoneId: zoneId ?? "", correct, ...(feedback ? { feedback } : {}) });
   if (correct) completeInfogapIfMatched(room);
 
   if (accepted && !correct) return null; // the zone was full — not the student's mistake
@@ -353,6 +366,7 @@ function applyItem(room: Room, pack: LessonPack, itemIndex: number) {
   const resolved = resolveItem(pack, itemIndex);
   const before = Object.values(room.state.objects);
 
+  room.pack = pack;
   room.currentItem = pack.items[itemIndex];
   room.completed = false;
   room.state.objects = {};

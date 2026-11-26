@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   binCapacity,
+  correctDropText,
+  teacherLesson,
   gapTextId,
   loadValidPack,
   normalizePack,
@@ -66,7 +68,6 @@ test("sort: one bin accepts several objects", () => {
   assert.deepEqual(forbidden.accepts, ["mustnt", "cant"]);
   assert.equal(forbidden.variant, "bin");
   assert.equal(forbidden.label, "forbidden");
-  assert.equal(forbidden.feedback, "Yes, that's where it belongs.");
 });
 
 test("gap: an object can be correct in more than one zone, and the text is displayed", () => {
@@ -424,4 +425,33 @@ test("infogap: no distractors, and every slot needs its one reference object", (
 
 test("binCapacity counts a grid of chips", () => {
   assert.deepEqual(binCapacity({ w: 0.45, h: 0.49 }, { w: 0.2, h: 0.08 }), { cols: 2, rows: 4 });
+});
+
+// --- What the relay says, built from the pack it holds. ---
+
+test("the place sentence comes from the pack's template", () => {
+  const pack = loadValidPack(legacyRaw());
+  const { objects } = resolveItem(pack, 9);
+  const zone = zonesOf(objects)[0];
+  const ball = objects.find((o) => o.id === "ball")!;
+  // The zone sits between the table and the chair, so the sentence names those two.
+  assert.equal(correctDropText(pack, pack.items[9], zone, ball), "The ball is between the table and chair.");
+  const second = resolveItem(pack, 1).objects;
+  assert.equal(correctDropText(pack, pack.items[1], zonesOf(second)[0], second.find((o) => o.id === "ball")!), "The ball is under the table.");
+});
+
+test("other kinds get their feedback line, or nothing", () => {
+  const pack = loadValidPack(demoRaw());
+  const { objects } = resolveItem(pack, 0);
+  assert.equal(correctDropText(pack, pack.items[0], zonesOf(objects)[0], objects[0]), "Yes, that's where it belongs.");
+  const ig = resolveItem(pack, 3).objects;
+  assert.equal(correctDropText(pack, pack.items[3], zonesOf(ig)[0], ig[0]), undefined);
+});
+
+test("the teacher lesson carries the key and the wrong chips, by label", () => {
+  const lesson = teacherLesson(loadValidPack(demoRaw()));
+  assert.equal(lesson.packId, "demo-modals");
+  assert.ok(lesson.items[1].key.includes("must → [1]"));
+  assert.deepEqual(lesson.items[1].wrong, ["must to", "don't must"]);
+  assert.ok(lesson.items[3].key.includes("maths → Monday 9:00"));
 });

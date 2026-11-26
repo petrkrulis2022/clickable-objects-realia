@@ -38,10 +38,13 @@ export interface StageObject {
 
 export interface Zone extends StageObject {
   kind: "zone";
-  accepts: string[]; // ids that are correct here — more than one for a sort bin
+  /**
+   * Ids that are correct here — more than one for a sort bin. The relay's
+   * copy only: every client receives [], because the relay judges drops and
+   * an answer list in a browser is an answer key in a browser.
+   */
+  accepts: string[];
   relation: string; // 'under', 'on', 'in' for a place zone; '' otherwise
-  /** Shown on a correct placement (the item's feedback). Place zones build a sentence from the template instead. */
-  feedback?: string;
 }
 
 export interface CardAudio {
@@ -102,7 +105,10 @@ export type ServerMessage =
       removed: string[];
       backdrop?: Backdrop | null;
     }
-  | { type: "verdict"; id: string; zoneId: string; correct: boolean }
+  /** To the dropper only. `feedback`, on a correct drop: the place sentence, or the item's feedback line. */
+  | { type: "verdict"; id: string; zoneId: string; correct: boolean; feedback?: string }
+  /** Teacher only, through the role filter: the lesson's items and answer key, for the teacher panel. */
+  | { type: "lesson"; lesson: TeacherLesson }
   | { type: "peer"; role: Role; connected: boolean }
   // Not in the PRD's protocol table. Added in "6. Reveal cards" so the
   // teacher's dots can update live: a student's 'reveal' is logged
@@ -227,6 +233,25 @@ export interface LessonPack {
   sentenceTemplate: string;
   cards: PackCard[];
   items: PackItem[];
+}
+
+/** One item as the teacher panel shows it. Never sent to the student. */
+export interface TeacherLessonItem {
+  id: string;
+  kind: ItemKind;
+  prompt: string;
+  source?: string;
+  /** "object → zone" lines: the answers the relay accepts. */
+  key: string[];
+  /** Labels of the item's distractors. */
+  wrong: string[];
+}
+
+/** What the teacher's client knows about the pack: enough for the panel, no more. */
+export interface TeacherLesson {
+  packId: string;
+  title: string;
+  items: TeacherLessonItem[];
 }
 
 /** What one pack item resolves to on the stage. */

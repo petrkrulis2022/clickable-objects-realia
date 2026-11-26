@@ -1,4 +1,4 @@
-import type { LessonPack } from "@realia/shared";
+import type { TeacherLesson } from "@realia/shared";
 import { attachDragHandle, type Pos } from "@overlay/shared";
 import { SYSTEM_FONT_STACK, TEACHER_PANEL_BG, TEACHER_PANEL_WIDTH_PX, Z_INDEX_MAX } from "./design";
 import type { OverlayHandle } from "./overlay";
@@ -108,7 +108,8 @@ function isTyping(e: Pick<KeyboardEvent, "composedPath">): boolean {
 
 export interface TeacherPanelOptions {
   overlay: OverlayHandle;
-  pack: LessonPack;
+  /** The relay's teacher-only view of the pack: prompts and the answer key. The panel never sees the pack itself. */
+  lesson: TeacherLesson;
   initialItemIndex: number;
   onSetActivity: (itemIndex: number) => void;
   onMark: (itemIndex: number, verdict: "correct" | "retry") => void;
@@ -126,7 +127,7 @@ export interface TeacherPanelController {
  * overlay.setLeftInset so it truly never overlaps it.
  */
 export function attachTeacherPanel(opts: TeacherPanelOptions): TeacherPanelController {
-  const { overlay, pack, onSetActivity, onMark } = opts;
+  const { overlay, lesson, onSetActivity, onMark } = opts;
   let currentIndex = opts.initialItemIndex;
   let collapsed = false;
   let floating = false;
@@ -151,7 +152,7 @@ export function attachTeacherPanel(opts: TeacherPanelOptions): TeacherPanelContr
   headerRow.appendChild(dragHandle);
 
   const header = document.createElement("h2");
-  header.textContent = pack.title;
+  header.textContent = lesson.title;
   headerRow.appendChild(header);
 
   const timerEl = document.createElement("div");
@@ -171,8 +172,6 @@ export function attachTeacherPanel(opts: TeacherPanelOptions): TeacherPanelContr
   keyEl.className = "co-key";
   panel.appendChild(keyEl);
 
-  const objectLabel = new Map(pack.draggables.map((d) => [d.id, d.label]));
-  const zoneLabel = new Map(pack.zones.map((z) => [z.id, z.label]));
 
   const nav = document.createElement("div");
   nav.className = "co-nav";
@@ -196,7 +195,7 @@ export function attachTeacherPanel(opts: TeacherPanelOptions): TeacherPanelContr
 
   const list = document.createElement("ol");
   list.className = "co-items";
-  const itemEls: HTMLLIElement[] = pack.items.map((item, i) => {
+  const itemEls: HTMLLIElement[] = lesson.items.map((item, i) => {
     const li = document.createElement("li");
     const text = item.prompt.length > 90 ? `${item.prompt.slice(0, 87)}…` : item.prompt;
     li.textContent = `${i + 1}. ${item.source ? `${item.source} · ` : ""}${text}`;
@@ -252,33 +251,20 @@ export function attachTeacherPanel(opts: TeacherPanelOptions): TeacherPanelContr
   });
 
   function render() {
-    const item = pack.items[currentIndex];
-    promptEl.textContent = item ? `${currentIndex + 1}/${pack.items.length}: ${item.prompt}` : "";
+    const item = lesson.items[currentIndex];
+    promptEl.textContent = item ? `${currentIndex + 1}/${lesson.items.length}: ${item.prompt}` : "";
     sourceEl.textContent = item && item.kind !== "place" ? `${item.kind}${item.source ? ` · ${item.source}` : ""}` : "";
-    keyEl.replaceChildren(
-      ...(item && item.kind !== "place"
-        ? item.pairs.map((p) => {
-            const li = document.createElement("li");
-            const zone = zoneLabel.get(p.zoneId) ?? p.zoneId;
-            li.textContent = `${objectLabel.get(p.objectId) ?? p.objectId} → ${item.kind === "gap" ? `[${zone}]` : zone}`;
-            return li;
-          })
-        : []),
-      ...(item?.distractors?.length
-        ? [Object.assign(document.createElement("li"), {
-            textContent: `wrong: ${item.distractors.map((d) => objectLabel.get(d) ?? d).join(", ")}`,
-          })]
-        : []),
-    );
+    const keyLines = item && item.kind !== "place" ? [...item.key, ...(item.wrong.length ? [`wrong: ${item.wrong.join(", ")}`] : [])] : [];
+    keyEl.replaceChildren(...keyLines.map((text) => Object.assign(document.createElement("li"), { textContent: text })));
     prevBtn.disabled = currentIndex <= 0;
-    nextBtn.disabled = currentIndex >= pack.items.length - 1;
+    nextBtn.disabled = currentIndex >= lesson.items.length - 1;
     itemEls.forEach((li, i) => li.classList.toggle("co-current", i === currentIndex));
     const current = itemEls[currentIndex];
     current?.scrollIntoView({ block: "nearest" });
   }
 
   function goTo(index: number) {
-    if (index < 0 || index >= pack.items.length || index === currentIndex) return;
+    if (index < 0 || index >= lesson.items.length || index === currentIndex) return;
     currentIndex = index;
     onSetActivity(currentIndex);
     render();

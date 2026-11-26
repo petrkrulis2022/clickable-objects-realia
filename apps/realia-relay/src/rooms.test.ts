@@ -129,6 +129,35 @@ test("gap: a distractor is wrong in every gap, goes back, and the mistake is log
   close(room);
 });
 
+test("a correct drop's verdict carries the sentence or feedback, built on the relay; a wrong one carries nothing", () => {
+  const { room, teacher } = newRoom(legacy(), 1);
+  dragAndDrop(room, teacher, "keys", "under_table");
+  assert.equal((lastVerdict(teacher) as { feedback?: string }).feedback, undefined);
+  dragAndDrop(room, teacher, "ball", "under_table");
+  assert.equal((lastVerdict(teacher) as { feedback?: string }).feedback, "The ball is under the table.");
+  close(room);
+
+  const sort = newRoom(demo(), 0);
+  dragAndDrop(sort.room, sort.teacher, "mustnt", "bin-forbidden");
+  assert.equal((lastVerdict(sort.teacher) as { feedback?: string }).feedback, "Yes, that's where it belongs.");
+  close(sort.room);
+});
+
+test("no role's view of any kind of item carries an answer list", () => {
+  for (const [pack, items] of [[legacy(), [0, 9]], [demo(), [0, 1, 2, 3]]] as const) {
+    for (const i of items) {
+      const { room } = newRoom(pack, i);
+      for (const role of ["teacher", "student"] as const) {
+        const zones = Object.values(stateFor(room, role).objects).filter((o) => o.kind === "zone") as Zone[];
+        assert.ok(zones.length > 0 && zones.every((z) => z.accepts.length === 0), `${pack.id} item ${i}: ${role} got an answer list`);
+      }
+      // ...while the relay itself still judges with them.
+      assert.ok((Object.values(room.state.objects).find((o) => o.kind === "zone") as Zone).accepts.length > 0);
+      close(room);
+    }
+  }
+});
+
 test("place: the original lesson still snaps the object to the zone's centre", () => {
   const { room, teacher } = newRoom(legacy(), 0);
   dragAndDrop(room, teacher, "keys", "on_table");

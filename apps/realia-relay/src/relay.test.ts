@@ -124,10 +124,15 @@ test("a non-default pack is selected by the teacher, played by both sides, and a
   assert.equal(seed.code, code);
 });
 
-test("CORS: the extension and Meet may call the relay; other websites may not", async () => {
+test("CORS: only the extension's own pages may call the relay — not Meet, not other websites", async () => {
+  const fromExtension = await fetch(`${base}/packs/demo-modals`, { headers: { origin: EXTENSION_ORIGIN } });
+  assert.equal(fromExtension.status, 200);
+  assert.equal(fromExtension.headers.get("access-control-allow-origin"), EXTENSION_ORIGIN);
+
+  // The content script plays from the WebSocket alone; a page on Meet can't read a pack (it holds every answer).
   const fromMeet = await fetch(`${base}/packs/demo-modals`, { headers: { origin: "https://meet.google.com" } });
-  assert.equal(fromMeet.status, 200);
-  assert.equal(fromMeet.headers.get("access-control-allow-origin"), "https://meet.google.com");
+  assert.equal(fromMeet.status, 403);
+  assert.equal(fromMeet.headers.get("access-control-allow-origin"), null);
 
   const preflight = await fetch(`${base}/packs`, {
     method: "OPTIONS",
@@ -248,17 +253,32 @@ test("no teacher-only object ever reaches the student, across a whole pack playe
   await student.waitFor((m) => m.type === "complete");
   await teacher.waitFor((m) => m.type === "complete");
 
+  // Switch packs mid-room, with both connected: the teacher's new key must still reach the teacher alone.
+  teacher.send({ type: "setActivity", packId: "a2-prepositions-place", itemIndex: 0 });
+  await teacher.waitFor((m) => m.type === "lesson");
+  await student.waitFor((m) => m.type === "patch" && m.changed.some((o) => o.id === "on_table"));
+
   const objectIdsIn = (frame: string): string[] => {
     const m = JSON.parse(frame) as ServerMessage;
     if (m.type === "state") return Object.values(m.state.objects).map((o) => o.id);
     if (m.type === "patch") return [...m.changed.map((o) => o.id), ...m.removed];
     return [];
   };
+  // No answer list, for any kind, ever reaches either socket: the relay judges drops.
+  const answerList = /"accepts":\[(?!\])/;
   for (const frame of student.frames) {
     for (const id of objectIdsIn(frame)) assert.ok(!teacherOnly.has(id), `student received teacher-only "${id}": ${frame.slice(0, 200)}`);
     for (const id of teacherOnly) assert.ok(!frame.includes(`"${id}"`), `student frame mentions "${id}"`);
-    assert.ok(!/"accepts":\["st-/.test(frame), "student received the infogap's answer list");
+    assert.ok(!answerList.test(frame), `student received an answer list: ${frame.slice(0, 200)}`);
+    assert.ok(!frame.includes('"type":"lesson"'), "student received the teacher's lesson and key");
+    assert.ok(!frame.includes("→"), "student received an answer-key line");
   }
+  for (const frame of teacher.frames) assert.ok(!answerList.test(frame), `teacher received an answer list: ${frame.slice(0, 200)}`);
+  // The teacher's key comes through the role filter instead: at join, and again when the pack changes.
+  const lessons = teacher.frames.filter((f) => f.includes('"type":"lesson"'));
+  assert.equal(lessons.length, 2);
+  assert.ok(lessons[0].includes("must → [1]"));
+  assert.ok(lessons[1].includes("keys → on_table"));
   const revealAt = teacher.frames.findIndex((f) => f.includes('"type":"complete"'));
   for (const frame of teacher.frames.slice(0, revealAt - 1)) {
     for (const id of studentOnly) assert.ok(!frame.includes(`"${id}"`), `teacher received student-only "${id}" before the reveal`);
