@@ -16,7 +16,7 @@
     "build:screenview-practice": "pnpm --filter @screenview/practice build",
     "dev:meeting-assist": "pnpm --filter @realia/shared build && pnpm --filter @assist/service dev",
     "build:meeting-assist": "pnpm --filter @realia/shared build && pnpm --filter @assist/service build",
-    "test:realia": "pnpm --filter @realia/shared test && pnpm --filter @realia/relay test && pnpm --filter @assist/service test"
+    "test:realia": "pnpm --filter @realia/shared test && pnpm --filter @realia/relay test && pnpm --filter @assist/service test && pnpm --filter @realia/app test"
   },
   "devDependencies": {
     "typescript": "^5.8.2"

@@ -1,6 +1,6 @@
 import { getSelectedPackId, setSelectedPackId } from "../content/pack";
 import { assistStatus, fetchPlan, listPacks, type DraftLesson, type LessonBrief } from "./api";
-import { mountApprovalScreen } from "./approvalScreen";
+import { mountApprovalScreen, type Review } from "./approvalScreen";
 import { mountLessonForm } from "./lessonForm";
 import { renderMarkdown } from "./markdown";
 
@@ -78,12 +78,16 @@ function main() {
 
   function showForm() {
     lessonsEl.hidden = false;
-    void mountLessonForm(work, { onDraft: showApproval });
+    void mountLessonForm(work, {
+      onDraft: (draft: DraftLesson, brief: LessonBrief) => showApproval({ origin: "generated", draft, brief }),
+      onPaste: (paste, packId, translationLang) => showApproval({ origin: "pasted", paste, packId, translationLang }),
+    });
   }
 
-  function showApproval(draft: DraftLesson, brief: LessonBrief) {
+  /** The one review screen, for every door. */
+  function showApproval(review: Review) {
     lessonsEl.hidden = true; // one screen: the review, nothing else
-    mountApprovalScreen(work, draft, brief, audioAvailable, {
+    mountApprovalScreen(work, review, audioAvailable, {
       onDiscard: showForm,
       onApproved: ({ pack, voiced, silent, reason }) => {
         lessonsEl.hidden = false;

@@ -10,6 +10,7 @@ import {
 } from "./api";
 import { documentToMaterial, isPhoto, MAX_PHOTOS, photoToMaterial, recordingToMaterial } from "./images";
 import { renderServiceError } from "./errors";
+import { newPastePackId, parsePaste, type PasteDraft } from "./pasteDoor";
 
 // One form, three doors into the one generator, five fields. Teachers
 // will not fill in more than five, so there are five.
@@ -32,6 +33,8 @@ async function loadDefaults(): Promise<BriefDefaults> {
 
 export interface LessonFormHandlers {
   onDraft: (draft: DraftLesson, brief: LessonBrief) => void;
+  /** The paste door: parsed locally, no model, no network. */
+  onPaste: (paste: PasteDraft, packId: string, translationLang: string) => void;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -62,11 +65,12 @@ export async function mountLessonForm(root: HTMLElement, handlers: LessonFormHan
     ),
   );
 
-  // --- The three doors. ---
-  const doors: Array<[Door, string]> = [
+  // --- The doors: three through the model, one straight from the teacher's own sentences. ---
+  const doors: Array<[Door | "paste", string]> = [
     ["coursebook", "From this week's coursebook pages"],
     ["last-lesson", "From last lesson (its results and pack)"],
     ["scratch", "From scratch (just my notes below)"],
+    ["paste", "Paste a gap exercise (no AI — your exact sentences)"],
   ];
   const doorRow = el("div", { className: "co-doors" });
   for (const [value, text] of doors) {
@@ -74,7 +78,8 @@ export async function mountLessonForm(root: HTMLElement, handlers: LessonFormHan
     doorRow.append(el("label", { className: "co-door" }, input, text));
   }
   root.append(doorRow);
-  const door = () => (doorRow.querySelector<HTMLInputElement>("input:checked")?.value ?? "coursebook") as Door;
+  const selected = () => doorRow.querySelector<HTMLInputElement>("input:checked")?.value ?? "coursebook";
+  const door = () => selected() as Door;
 
   // 1. Photos (and notes).
   const fileInput = el("input", { type: "file", multiple: true, accept: "image/*,.txt,.md,.pdf,.docx" });
@@ -111,7 +116,6 @@ export async function mountLessonForm(root: HTMLElement, handlers: LessonFormHan
   const recordStatus = el("span", { className: "co-draft-record-status" });
   const focusField = field("5. What to focus on", focusInput, el("div", { className: "co-draft-record-row" }, recordBtn, recordStatus));
 
-  root.append(photosField, lengthField, studentField, doneField, focusField);
 
   let recorded: Blob | null = null;
   let recorder: MediaRecorder | null = null;
@@ -142,9 +146,50 @@ export async function mountLessonForm(root: HTMLElement, handlers: LessonFormHan
 
   const submit = el("button", { type: "button", className: "co-draft-btn co-draft-btn-primary" }, "Draft the lesson");
   const status = el("div", { className: "co-draft-status" });
-  root.append(submit, status);
+  const generateSection = el("div", {}, photosField, lengthField, studentField, doneField, focusField, submit, status);
+  root.append(generateSection);
+
+  // --- The paste door. Parsed right here; nothing leaves this page. ---
+  const pasteInput = el("textarea", {
+    rows: 14,
+    spellcheck: false,
+    placeholder:
+      "1. You ___ take a calculator into the exam.\n2. You ___ get ready to go.\n3. She ___ eat crisps and chocolate.\n---\nshouldn't | 'd better | ought to | should | must to | don't must",
+  });
+  const pasteBuild = el("button", { type: "button", className: "co-draft-btn co-draft-btn-primary" }, "Build from my sentences");
+  const pasteStatus = el("div", { className: "co-draft-status" });
+  const pasteSection = el(
+    "div",
+    {},
+    el(
+      "p",
+      { className: "co-draft-hint" },
+      "One sentence per line, each gap as ___ (or with its answer in [brackets]). Then a line of ---, then the word bank, entries separated by |. Words in the bank that fit no gap become the wrong chips. Your text is used exactly as you paste it.",
+    ),
+    pasteInput,
+    pasteBuild,
+    pasteStatus,
+  );
+  pasteSection.hidden = true;
+  root.append(pasteSection);
+
+  pasteBuild.addEventListener("click", () => {
+    const result = parsePaste(pasteInput.value);
+    if (!result.ok) {
+      // Name every offending line; load nothing.
+      const list = el("ul", { className: "co-error" });
+      for (const e of result.errors) list.appendChild(el("li", {}, e));
+      pasteStatus.replaceChildren(list);
+      return;
+    }
+    pasteStatus.replaceChildren();
+    handlers.onPaste(result.draft, newPastePackId(), languageInput.value.trim() || defaults.firstLanguage);
+  });
 
   function syncDoor() {
+    const isPaste = selected() === "paste";
+    generateSection.hidden = isPaste;
+    pasteSection.hidden = !isPaste;
     photosField.querySelector(".co-field-label")!.textContent =
       door() === "scratch" ? "1. Notes (optional — no photos needed)" : "1. Photos of the pages (and any notes or last lesson's transcript)";
   }

@@ -482,10 +482,15 @@ export function teacherLesson(pack: LessonPack): TeacherLesson {
       kind: item.kind,
       prompt: item.prompt,
       ...(item.source ? { source: item.source } : {}),
-      key: item.pairs.map((p) => {
-        const zone = zoneLabel.get(p.zoneId) ?? p.zoneId;
-        return `${objectLabel.get(p.objectId) ?? p.objectId} → ${item.kind === "gap" ? `[${zone}]` : zone}`;
-      }),
+      // By label, once each: two chips of the same word (one per gap it fills) are one line of the key.
+      key: [
+        ...new Set(
+          item.pairs.map((p) => {
+            const zone = zoneLabel.get(p.zoneId) ?? p.zoneId;
+            return `${objectLabel.get(p.objectId) ?? p.objectId} → ${item.kind === "gap" ? `[${zone}]` : zone}`;
+          }),
+        ),
+      ],
       wrong: (item.distractors ?? []).map((d) => objectLabel.get(d) ?? d),
     })),
   };

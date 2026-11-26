@@ -104,8 +104,9 @@ export function recordCardAudio(pack: LessonPack): Promise<RecordedAudio> {
   return postJson<RecordedAudio>(`${ASSIST_URL}/plan/audio`, { pack });
 }
 
-export function savePack(pack: LessonPack, audio: Record<string, string>, plan: string) {
-  return postJson<{ ok: true; packId: string }>(`${RELAY_HTTP_URL}/packs`, { pack, audio, plan });
+/** `plan` is the generated teaching plan; a pasted lesson has none. */
+export function savePack(pack: LessonPack, audio: Record<string, string>, plan?: string) {
+  return postJson<{ ok: true; packId: string }>(`${RELAY_HTTP_URL}/packs`, { pack, audio, ...(plan ? { plan } : {}) });
 }
 
 export function listPacks() {
