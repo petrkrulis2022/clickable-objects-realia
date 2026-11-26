@@ -13,7 +13,7 @@ import { createRelay } from "./relay.js";
 // End to end, over real sockets: a non-default pack is selected by
 // the teacher, played by both sides, and appears in the report.
 
-const PACKS = join(import.meta.dirname, "..", "..", "realia", "public", "packs");
+const PACKS = join(import.meta.dirname, "..", "packs");
 const EXTENSION_ORIGIN = `chrome-extension://${"a".repeat(32)}`;
 
 let tmp: string;
@@ -119,18 +119,19 @@ test("a non-default pack is selected by the teacher, played by both sides, and a
   assert.match(html, /demo: forbidden/);
   assert.match(html, /<strong>don&#39;t have to<\/strong> → forbidden/);
 
-  const seed = (await (await fetch(`${base}/reports/latest-seed?packId=demo-modals`)).json()) as { packId: string; code: string };
+  // Last lesson's results are read through the lesson's link, which only the teacher was given.
+  const seed = (await (await fetch(`${base}${relay.linkFor("demo-modals")}/seed`)).json()) as { packId: string; code: string };
   assert.equal(seed.packId, "demo-modals");
   assert.equal(seed.code, code);
 });
 
 test("CORS: only the extension's own pages may call the relay — not Meet, not other websites", async () => {
-  const fromExtension = await fetch(`${base}/packs/demo-modals`, { headers: { origin: EXTENSION_ORIGIN } });
+  const fromExtension = await fetch(`${base}/packs`, { headers: { origin: EXTENSION_ORIGIN } });
   assert.equal(fromExtension.status, 200);
   assert.equal(fromExtension.headers.get("access-control-allow-origin"), EXTENSION_ORIGIN);
 
   // The content script plays from the WebSocket alone; a page on Meet can't read a pack (it holds every answer).
-  const fromMeet = await fetch(`${base}/packs/demo-modals`, { headers: { origin: "https://meet.google.com" } });
+  const fromMeet = await fetch(`${base}/packs`, { headers: { origin: "https://meet.google.com" } });
   assert.equal(fromMeet.status, 403);
   assert.equal(fromMeet.headers.get("access-control-allow-origin"), null);
 
@@ -142,16 +143,16 @@ test("CORS: only the extension's own pages may call the relay — not Meet, not 
   assert.equal(preflight.headers.get("access-control-allow-origin"), EXTENSION_ORIGIN);
   assert.match(preflight.headers.get("access-control-allow-headers") ?? "", /content-type/);
 
-  const fromElsewhere = await fetch(`${base}/packs/demo-modals`, { headers: { origin: "https://example.com" } });
+  const fromElsewhere = await fetch(`${base}/packs`, { headers: { origin: "https://example.com" } });
   assert.equal(fromElsewhere.status, 403);
   assert.equal(fromElsewhere.headers.get("access-control-allow-origin"), null);
 });
 
-test("GET /packs lists the bundled packs, and serves them normalised", async () => {
+test("GET /packs lists the built-in lessons, and each is served normalised at its link", async () => {
   const { packs } = (await (await fetch(`${base}/packs`)).json()) as { packs: { id: string }[] };
   const ids = packs.map((p) => p.id);
   assert.ok(ids.includes("a2-prepositions-place") && ids.includes("demo-modals"));
-  const legacy = (await (await fetch(`${base}/packs/a2-prepositions-place`)).json()) as {
+  const legacy = (await (await fetch(`${base}${relay.linkFor("a2-prepositions-place")}`)).json()) as {
     items: { kind: string; pairs: unknown }[];
   };
   assert.equal(legacy.items[0].kind, "place");
@@ -196,11 +197,14 @@ test("POST /packs stores an approved pack with its audio and plan, and serves th
     plan: "# Plan\n\nAnswer key: …",
   });
   assert.equal(res.status, 200, await res.clone().text());
+  const { link } = (await res.json()) as { link: string };
+  assert.match(link, /^\/packs\/lesson-test-1\/[A-Za-z0-9_-]{16}$/, "the save returns the lesson's link");
 
   const audio = await fetch(`${base}/packs/lesson-test-1/audio/c-obligation-normal.mp3`);
   assert.equal(audio.status, 200);
   assert.equal(audio.headers.get("content-type"), "audio/mpeg");
-  assert.equal(await (await fetch(`${base}/packs/lesson-test-1/plan`)).text(), "# Plan\n\nAnswer key: …");
+  assert.equal(await (await fetch(`${base}${link}/plan`)).text(), "# Plan\n\nAnswer key: …");
+  assert.equal((await fetch(`${base}/packs/lesson-test-1/plan`)).status, 404, "no plan without the link");
   assert.equal((await fetch(`${base}/packs/lesson-test-1/audio/..%2F..%2Flesson-test-1.json`)).status, 404);
 
   const missingAudio = demoPackWithId("lesson-test-2");
@@ -274,6 +278,13 @@ test("no teacher-only object ever reaches the student, across a whole pack playe
     assert.ok(!frame.includes("→"), "student received an answer-key line");
   }
   for (const frame of teacher.frames) assert.ok(!answerList.test(frame), `teacher received an answer list: ${frame.slice(0, 200)}`);
+  // The lesson's link goes to the teacher, never the student — by any frame.
+  for (const id of ["demo-modals", "a2-prepositions-place"]) {
+    const token = relay.linkFor(id).split("/").pop()!;
+    assert.ok(student.frames.every((f) => !f.includes(token)), `the student received ${id}'s link`);
+  }
+  assert.ok(student.frames.every((f) => !f.includes('"link"')), "the student received a lesson link");
+  assert.ok(teacher.frames.some((f) => f.includes(`"link":"${relay.linkFor("demo-modals")}"`)), "the teacher was given the link");
   // The teacher's key comes through the role filter instead: at join, and again when the pack changes.
   const lessons = teacher.frames.filter((f) => f.includes('"type":"lesson"'));
   assert.equal(lessons.length, 2);
@@ -288,4 +299,32 @@ test("no teacher-only object ever reaches the student, across a whole pack playe
 
   teacher.ws.close();
   student.ws.close();
+});
+
+test("a lesson's file, plan and results are served only at its link — knowing the id is not enough", async () => {
+  const saved = demoPackWithId("lesson-links-1");
+  const res = await postPack({ pack: saved, audio: {}, plan: "# Plan" });
+  const { link } = (await res.json()) as { link: string };
+  const other = (await (await postPack({ pack: demoPackWithId("lesson-links-2") })).json()) as { link: string };
+  const otherToken = other.link.split("/").pop()!;
+
+  // The id alone, for a saved lesson and a built-in one: nothing.
+  for (const id of ["lesson-links-1", "demo-modals", "a2-prepositions-place"]) {
+    assert.equal((await fetch(`${base}/packs/${id}`)).status, 404, `/packs/${id} answered without a token`);
+  }
+  // A wrong token, and another lesson's token: the same 404 as a lesson that doesn't exist.
+  assert.equal((await fetch(`${base}/packs/lesson-links-1/${"x".repeat(16)}`)).status, 404);
+  assert.equal((await fetch(`${base}/packs/lesson-links-1/${otherToken}`)).status, 404);
+  assert.equal((await fetch(`${base}/packs/lesson-links-1/${otherToken}/plan`)).status, 404);
+  assert.equal((await fetch(`${base}/packs/lesson-links-1/${otherToken}/seed`)).status, 404);
+  // The right token: the lesson.
+  assert.equal((await fetch(`${base}${link}`)).status, 200);
+  assert.equal(await (await fetch(`${base}${link}/plan`)).text(), "# Plan");
+  // The old untokenised results route is gone.
+  assert.equal((await fetch(`${base}/reports/latest-seed?packId=lesson-links-1`)).status, 404);
+
+  // The lesson list carries ids and titles, never a link or a token.
+  const listing = await (await fetch(`${base}/packs`)).text();
+  assert.ok(!listing.includes(link.split("/").pop()!), "the list leaks a lesson's token");
+  assert.ok(!listing.includes('"link":'), "the list carries a link field");
 });

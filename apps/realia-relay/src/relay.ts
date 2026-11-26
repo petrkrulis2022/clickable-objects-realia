@@ -25,7 +25,7 @@ import {
 export const DEFAULT_PACK_ID = "a2-prepositions-place";
 
 export interface RelayDirs {
-  /** apps/realia/public/packs */
+  /** apps/realia-relay/packs — the built-in lessons. Never shipped in the extension. */
   bundledPacks: string;
   /** Approved generated packs (+ their audio and plan). */
   customPacks: string;
@@ -192,6 +192,7 @@ export function createRelay(opts: RelayOptions) {
       return;
     }
 
+    // Ids and titles only, for choosing a lesson. Never a lesson's link or contents.
     if (req.method === "GET" && path === "/packs") return sendJson(res, 200, { packs: packs.list() });
 
     // An approved pack, with the mp3s generated for its new words and its teaching plan.
@@ -207,9 +208,12 @@ export function createRelay(opts: RelayOptions) {
               plan: body.plan as string | undefined,
             },
       );
-      return sendJson(res, 200, { ok: true, packId: pack.id });
+      // The link is generated when the pack is saved, and goes back to the teacher's options page only.
+      return sendJson(res, 200, { ok: true, packId: pack.id, link: packs.linkFor(pack.id) });
     }
 
+    // Card audio is not behind the lesson's token: the student's cards must play it, and a token in
+    // an audio URL would hand her the link to the whole lesson. A recording of a word is not an answer.
     const audioMatch = path.match(/^\/packs\/([^/]+)\/audio\/([^/]+)$/);
     if (req.method === "GET" && audioMatch) {
       const file = packs.audioFile(audioMatch[1], audioMatch[2]);
@@ -219,19 +223,21 @@ export function createRelay(opts: RelayOptions) {
       return;
     }
 
-    const planMatch = path.match(/^\/packs\/([^/]+)\/plan$/);
-    if (req.method === "GET" && planMatch) {
-      const plan = packs.plan(planMatch[1]);
-      if (plan === null) throw new HttpError(404, "no plan saved for this pack");
-      res.writeHead(200, { "content-type": "text/markdown; charset=utf-8" }).end(plan);
-      return;
-    }
-
-    const packMatch = path.match(/^\/packs\/([^/]+)$/);
-    if (req.method === "GET" && packMatch) return sendJson(res, 200, packs.load(packMatch[1]));
-
-    if (req.method === "GET" && path === "/reports/latest-seed") {
-      const seed = latestSeed(url.searchParams.get("packId"));
+    // Everything else about a lesson — its file, its plan, how the student did — only at its link.
+    // A wrong or missing token is a plain 404, indistinguishable from a lesson that doesn't exist.
+    const linked = path.match(/^\/packs\/([^/]+)\/([^/]+)(?:\/(plan|seed))?$/);
+    if (req.method === "GET" && linked) {
+      const [, id, token, what] = linked;
+      const pack = packs.loadWithToken(id, token);
+      if (!what) return sendJson(res, 200, pack);
+      if (what === "plan") {
+        const plan = packs.plan(id);
+        if (plan === null) throw new HttpError(404, "no plan saved for this pack");
+        res.writeHead(200, { "content-type": "text/markdown; charset=utf-8" }).end(plan);
+        return;
+      }
+      // Last lesson's results for this pack: the "from last lesson" door's input.
+      const seed = latestSeed(id);
       if (!seed) throw new HttpError(404, "no lesson report yet");
       return sendJson(res, 200, seed);
     }
@@ -289,7 +295,7 @@ export function createRelay(opts: RelayOptions) {
         }
 
         ws.send(JSON.stringify({ type: "state", state: stateFor(joined.room, joined.role), yourRole: joined.role }));
-        if (joined.role === "teacher") sendLesson(joined.room);
+        if (joined.role === "teacher") sendLesson(joined.room, packs.linkFor);
         broadcast(joined.room, joined.role, { type: "peer", role: joined.role, connected: true });
         return;
       }
@@ -320,7 +326,7 @@ export function createRelay(opts: RelayOptions) {
           const packChanged = session.room.pack?.id !== pack.id;
           const event = applySetActivity(session.room, session.role, pack, msg.itemIndex);
           if (event) events.append(session.code, event);
-          if (event && packChanged) sendLesson(session.room);
+          if (event && packChanged) sendLesson(session.room, packs.linkFor);
           break;
         }
         case "mark": {
@@ -359,5 +365,7 @@ export function createRelay(opts: RelayOptions) {
       }),
     /** For tests: the report token issued for a room, once its session has ended. */
     reportTokenFor: (code: string) => reportTokens.get(code),
+    /** For tests: a lesson's link, as the teacher is given it. */
+    linkFor: (packId: string) => packs.linkFor(packId),
   };
 }

@@ -583,6 +583,31 @@ This is the same class of bug as the infogap one: information sitting in
 metadata rather than in objects. Prompt 14 would add a third instance (the plan
 strip carries prompts, minutes and the key), so this goes first.
 
+**13, follow-up 2. Lesson links and number agreement**
+
+```text
+Two fixes, then stop. Do not start 14.
+
+1. Serve lesson files the way the report is served: a random
+   per-lesson token in the path, generated when the pack is saved.
+   The extension only ever receives the tokenised URL. No login,
+   no accounts - student install stays two clicks.
+
+2. Number agreement in sentenceTemplate. Add optional plural:true
+   to draggables and a {be} token that resolves to is/are. Packs
+   without the flag behave exactly as today. Set plural:true on
+   "keys" in the demo pack, and have the generator set it for every
+   plural noun it writes. Add a test with a plural object.
+```
+
+**A test that watches one channel says nothing about the others.** Prompt
+13's test proved the WebSocket clean while the extension downloaded the whole
+lesson file, every answer included, over HTTP. Anything one person must not
+see has to be unreachable by every route — frames, HTTP, files shipped inside
+the extension, URLs embedded in objects they do receive, metadata — and each
+route needs its own test with a planted leak. Prompt 14's plan strip is the
+next place this applies.
+
 **14. The plan strip (teacher-private)**
 
 ```text

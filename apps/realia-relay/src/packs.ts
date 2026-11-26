@@ -1,3 +1,4 @@
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -8,8 +9,9 @@ import {
   type LessonPack,
 } from "@realia/shared";
 
-// Bundled packs (apps/realia/public/packs) are the source of truth for
-// the STATIC content shipped with the extension. A generated pack
+// Built-in packs (apps/realia-relay/packs) are the lessons that come with
+// Realia. They live with the relay, not in the extension: a lesson file
+// holds every answer, so no student's install may carry one. A generated pack
 // (approved on the options page) exists only at runtime, so it lives
 // in the relay's own directory, together with the mp3s generated for
 // its new words at approval time and the teaching plan the teacher
@@ -24,7 +26,7 @@ import {
 // coursebook photos a pack was generated from never reach the relay.
 
 export interface PackDirs {
-  /** apps/realia/public/packs — shipped with the extension, read-only here. */
+  /** apps/realia-relay/packs — the built-in lessons, read-only here. */
   bundled: string;
   /** Approved generated packs, one JSON file + one directory each. */
   custom: string;
@@ -63,8 +65,44 @@ function looksLikeMp3(bytes: Buffer): boolean {
   return bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0;
 }
 
+/**
+ * Lesson files are served the way the report is: at an unguessable
+ * link, /packs/<id>/<token>. Knowing a lesson's id (the student does —
+ * it's in the room state) is not enough to read it. Not real security,
+ * and not meant to be — no accounts, so the student's install stays two
+ * clicks — but it closes walking the id space. The token goes only to
+ * the teacher: in the save response, and in her teacher-only "lesson"
+ * message. Tokens persist in the relay's own directory.
+ */
+function createTokenStore(path: string) {
+  let tokens: Record<string, string> | null = null;
+  function all(): Record<string, string> {
+    tokens ??= existsSync(path) ? (JSON.parse(readFileSync(path, "utf8")) as Record<string, string>) : {};
+    return tokens;
+  }
+  return {
+    /** The lesson's token, created on first use. */
+    tokenFor(id: string): string {
+      const t = all();
+      if (!t[id]) {
+        t[id] = randomBytes(12).toString("base64url").slice(0, 16);
+        mkdirSync(join(path, ".."), { recursive: true });
+        writeFileSync(path, JSON.stringify(t, null, 2), "utf8");
+      }
+      return t[id];
+    },
+    matches(id: string, token: string): boolean {
+      const expected = all()[id];
+      if (!expected || expected.length !== token.length) return false;
+      return timingSafeEqual(Buffer.from(expected), Buffer.from(token));
+    },
+  };
+}
+
 export function createPackStore(dirs: PackDirs) {
   const cache = new Map<string, LessonPack>();
+  // A leading dot: no pack id can start with one, so no lesson can ever overwrite it.
+  const tokens = createTokenStore(join(dirs.custom, ".tokens.json"));
 
   function customJson(id: string) {
     return join(dirs.custom, `${id}.json`);
@@ -142,7 +180,20 @@ export function createPackStore(dirs: PackDirs) {
     if (input.plan !== undefined) writeFileSync(join(customDir(pack.id), "plan.md"), input.plan, "utf8");
     writeFileSync(customJson(pack.id), JSON.stringify(pack, null, 2), "utf8");
     cache.set(pack.id, pack);
+    tokens.tokenFor(pack.id); // generated when the pack is saved
     return pack;
+  }
+
+  /** The lesson's unguessable link. Teacher only. */
+  function linkFor(id: string): string {
+    load(id); // only for a lesson that exists and is valid
+    return `/packs/${id}/${tokens.tokenFor(id)}`;
+  }
+
+  /** The lesson, if the token is its token; otherwise throws 404, the same as a lesson that doesn't exist. */
+  function loadWithToken(id: string, token: string): LessonPack {
+    if (!PACK_ID_RE.test(id) || !tokens.matches(id, token)) throw new PackStoreError("not found", 404);
+    return load(id);
   }
 
   function list(): PackSummary[] {
@@ -150,7 +201,7 @@ export function createPackStore(dirs: PackDirs) {
     for (const [dir, custom] of [[dirs.bundled, false], [dirs.custom, true]] as const) {
       if (!existsSync(dir)) continue;
       for (const file of readdirSync(dir)) {
-        if (!file.endsWith(".json")) continue;
+        if (!file.endsWith(".json") || file.startsWith(".")) continue;
         const id = file.slice(0, -".json".length);
         try {
           const pack = load(id);
@@ -176,7 +227,7 @@ export function createPackStore(dirs: PackDirs) {
     return existsSync(path) ? readFileSync(path, "utf8") : null;
   }
 
-  return { load, save, list, audioFile, plan };
+  return { load, save, list, audioFile, plan, linkFor, loadWithToken, tokenMatches: tokens.matches };
 }
 
 export type PackStore = ReturnType<typeof createPackStore>;

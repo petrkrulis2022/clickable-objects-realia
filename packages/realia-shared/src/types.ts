@@ -155,6 +155,8 @@ export interface PackDraggable {
   id: string;
   label: string;
   emoji?: string;
+  /** A plural noun (keys, scissors, glasses, people): the sentence template's {be} becomes "are". Omitted = singular. */
+  plural?: boolean;
 }
 
 export interface PackZone {
@@ -252,6 +254,8 @@ export interface TeacherLesson {
   packId: string;
   title: string;
   items: TeacherLessonItem[];
+  /** The lesson file's unguessable link on the relay, /packs/<id>/<token>. Set by the relay; teacher only. */
+  link?: string;
 }
 
 /** What one pack item resolves to on the stage. */

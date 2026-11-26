@@ -116,11 +116,12 @@ const ACTIVITY_SCHEMA = {
 const OBJECT_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["id", "label", "emoji"],
+  required: ["id", "label", "emoji", "plural"],
   properties: {
     id: { type: "string" },
     label: { type: "string", description: "What the chip says: a word or short phrase, at most 60 characters." },
     emoji: { type: "string", description: "One emoji if it genuinely helps, otherwise an empty string." },
+    plural: { type: "boolean", description: "true if the label is a plural noun (keys, scissors, glasses, people, clothes), so a sentence says 'are' not 'is'." },
   },
 } as const;
 
@@ -187,6 +188,7 @@ interface ModelObject {
   id: string;
   label: string;
   emoji: string;
+  plural: boolean;
 }
 interface ModelLesson {
   title: string;
@@ -229,6 +231,7 @@ Turn an exercise into objects only when moving things adds something: choosing b
 - Everything the student sees is in English: prompts, labels, gap texts, feedback. Card translations are in the student's first language.
 - Cards: up to 8 vocabulary reveal cards for new words from the materials that are worth hearing aloud. None for grammar words.
 - Ids: lowercase letters, digits and hyphens only.
+- Mark every object whose label is a plural noun with plural: true (keys, scissors, glasses, trousers, people, clothes), so the sentence on screen agrees: "The scissors are under the chair", never "is".
 
 # The plan
 
@@ -343,7 +346,7 @@ export function toPack(lesson: ModelLesson, packId: string, reference?: LessonPa
   for (const o of lesson.objects) {
     const id = slug(o.id);
     if (!usedObjects.has(id) || draggables.some((d) => d.id === id)) continue;
-    draggables.push({ id, label: o.label.trim(), ...(o.emoji.trim() ? { emoji: o.emoji.trim() } : {}) });
+    draggables.push({ id, label: o.label.trim(), ...(o.emoji.trim() ? { emoji: o.emoji.trim() } : {}), ...(o.plural ? { plural: true } : {}) });
   }
   for (const d of reference?.draggables ?? []) {
     if (usedObjects.has(d.id) && !draggables.some((x) => x.id === d.id)) draggables.push(d);
@@ -504,7 +507,9 @@ function packWithReplacedItem(pack: LessonPack, index: number, a: ModelActivity,
   const draggables = [...pack.draggables];
   for (const o of newObjects) {
     const id = slug(o.id);
-    if (!draggables.some((d) => d.id === id)) draggables.push({ id, label: o.label.trim(), ...(o.emoji.trim() ? { emoji: o.emoji.trim() } : {}) });
+    if (!draggables.some((d) => d.id === id)) {
+      draggables.push({ id, label: o.label.trim(), ...(o.emoji.trim() ? { emoji: o.emoji.trim() } : {}), ...(o.plural ? { plural: true } : {}) });
+    }
   }
   const items = pack.items.map((it, i) => (i === index ? item : it));
   const used = new Set(items.flatMap((it) => [...it.pairs.map((p) => p.objectId), ...(it.distractors ?? [])]));

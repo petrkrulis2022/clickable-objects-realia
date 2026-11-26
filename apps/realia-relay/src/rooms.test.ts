@@ -6,7 +6,7 @@ import { loadValidPack, type LessonPack, type Zone } from "@realia/shared";
 import type { WebSocket } from "ws";
 import { applyDrop, applyMove, joinRoom, leaveRoom, seedInitialItem, stateFor, type Room } from "./rooms.js";
 
-const PACKS = join(import.meta.dirname, "..", "..", "realia", "public", "packs");
+const PACKS = join(import.meta.dirname, "..", "packs");
 const demo = (): LessonPack => loadValidPack(JSON.parse(readFileSync(join(PACKS, "demo-modals.json"), "utf8")));
 const legacy = (): LessonPack => loadValidPack(JSON.parse(readFileSync(join(PACKS, "a2-prepositions-place.json"), "utf8")));
 
@@ -141,6 +141,13 @@ test("a correct drop's verdict carries the sentence or feedback, built on the re
   dragAndDrop(sort.room, sort.teacher, "mustnt", "bin-forbidden");
   assert.equal((lastVerdict(sort.teacher) as { feedback?: string }).feedback, "Yes, that's where it belongs.");
   close(sort.room);
+});
+
+test("the relay's sentence agrees in number: the keys are, the ball is", () => {
+  const keys = newRoom(legacy(), 0);
+  dragAndDrop(keys.room, keys.teacher, "keys", "on_table");
+  assert.equal((lastVerdict(keys.teacher) as { feedback?: string }).feedback, "The keys are on the table.");
+  close(keys.room);
 });
 
 test("no role's view of any kind of item carries an answer list", () => {

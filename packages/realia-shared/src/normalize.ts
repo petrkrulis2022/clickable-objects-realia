@@ -59,6 +59,7 @@ export function normalizePack(raw: unknown): LessonPack {
       id: str(d.id),
       label: str(d.label),
       ...(optStr(d.emoji) ? { emoji: optStr(d.emoji) } : {}),
+      ...(d.plural === true ? { plural: true } : {}),
     }),
   );
 

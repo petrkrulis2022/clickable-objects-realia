@@ -464,7 +464,11 @@ export function buildZoneAnchorLabel(pack: LessonPack): Record<string, string> {
 export function correctDropText(pack: LessonPack, item: PackItem, zone: Zone, placed: StageObject): string | undefined {
   if (item.kind !== "place") return item.feedback || undefined;
   if (!zone.relation || !pack.sentenceTemplate) return undefined;
+  // Number agreement: {be} is "are" for an object marked plural, "is" otherwise. A template without
+  // {be} is untouched, so a pack that predates the token reads exactly as it always has.
+  const plural = pack.draggables.find((d) => d.id === placed.id)?.plural === true;
   return pack.sentenceTemplate
+    .replace("{be}", plural ? "are" : "is")
     .replace("{object}", placed.label)
     .replace("{relation}", zone.relation)
     .replace("{anchor}", buildZoneAnchorLabel(pack)[zone.id] ?? zone.relation);

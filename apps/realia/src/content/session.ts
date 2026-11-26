@@ -2,7 +2,7 @@ import type { ServerMessage, StageObject, TeacherLesson } from "@realia/shared";
 import { attachCardsController } from "./cards";
 import { attachDragController } from "./drag";
 import { mountOverlay } from "./overlay";
-import { getSelectedPackId } from "./pack";
+import { getSelectedPackId, rememberLessonLink } from "./pack";
 import { attachTeacherPanel, type TeacherPanelController } from "./teacherPanel";
 import { connect } from "./ws";
 
@@ -81,6 +81,7 @@ export function startSession(code: string): Session {
         case "lesson":
           // Teacher only — the relay never sends this to the student.
           showTeacherPanel(msg.lesson);
+          if (msg.lesson.link) void rememberLessonLink(msg.lesson.packId, msg.lesson.link);
           break;
         case "patch":
           drag.applyRemotePatch(msg.changed, msg.removed);

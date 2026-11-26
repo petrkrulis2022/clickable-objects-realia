@@ -11,7 +11,7 @@ import { createPackStore } from "../src/packs.ts";
 import { buildSeed, renderReport } from "../src/report.ts";
 
 const packs = createPackStore({
-  bundled: join(import.meta.dirname, "..", "..", "realia", "public", "packs"),
+  bundled: join(import.meta.dirname, "..", "packs"),
   custom: join(import.meta.dirname, "..", "custom-packs"),
 });
 

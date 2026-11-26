@@ -45,8 +45,9 @@ void (async () => {
   const packId = await getSelectedPackId();
   let title = packId;
   try {
-    const res = await fetch(`${RELAY_HTTP_URL}/packs/${encodeURIComponent(packId)}`);
-    if (res.ok) title = ((await res.json()) as { title?: string }).title ?? packId;
+    // The lesson list: ids and titles only — a lesson's file is never read here.
+    const res = await fetch(`${RELAY_HTTP_URL}/packs`);
+    if (res.ok) title = ((await res.json()) as { packs: { id: string; title: string }[] }).packs.find((p) => p.id === packId)?.title ?? packId;
   } catch {
     /* relay not running: show the id */
   }

@@ -20,7 +20,7 @@ import {
 } from "./index.js";
 
 const HERE = import.meta.dirname;
-const BUNDLED_PACKS = join(HERE, "..", "..", "..", "apps", "realia", "public", "packs");
+const BUNDLED_PACKS = join(HERE, "..", "..", "..", "apps", "realia-relay", "packs");
 
 function readJson(path: string): unknown {
   return JSON.parse(readFileSync(path, "utf8"));
@@ -438,6 +438,24 @@ test("the place sentence comes from the pack's template", () => {
   assert.equal(correctDropText(pack, pack.items[9], zone, ball), "The ball is between the table and chair.");
   const second = resolveItem(pack, 1).objects;
   assert.equal(correctDropText(pack, pack.items[1], zonesOf(second)[0], second.find((o) => o.id === "ball")!), "The ball is under the table.");
+});
+
+test("number agreement: a plural object gets 'are', a singular one 'is'", () => {
+  const pack = loadValidPack(legacyRaw());
+  assert.equal(pack.draggables.find((d) => d.id === "keys")?.plural, true);
+  const first = resolveItem(pack, 0).objects; // keys on the table
+  assert.equal(correctDropText(pack, pack.items[0], zonesOf(first)[0], first.find((o) => o.id === "keys")!), "The keys are on the table.");
+  const second = resolveItem(pack, 1).objects; // ball under the table
+  assert.equal(correctDropText(pack, pack.items[1], zonesOf(second)[0], second.find((o) => o.id === "ball")!), "The ball is under the table.");
+});
+
+test("a pack without {be} or the plural flag reads exactly as before", () => {
+  const raw = legacyRaw() as { sentenceTemplate: string; draggables: { id: string; plural?: boolean }[] };
+  raw.sentenceTemplate = "The {object} is {relation} the {anchor}.";
+  for (const d of raw.draggables) delete d.plural;
+  const pack = loadValidPack(raw);
+  const first = resolveItem(pack, 0).objects;
+  assert.equal(correctDropText(pack, pack.items[0], zonesOf(first)[0], first.find((o) => o.id === "keys")!), "The keys is on the table.");
 });
 
 test("other kinds get their feedback line, or nothing", () => {

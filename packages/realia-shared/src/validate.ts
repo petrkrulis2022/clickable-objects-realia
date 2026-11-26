@@ -171,6 +171,7 @@ export function validatePack(pack: LessonPack): string[] {
     claimId(d.id, `object "${d.id}"`);
     checkText(problems, `object "${d.id}" label`, d.label, LIMITS.objectLabel);
     checkText(problems, `object "${d.id}" emoji`, d.emoji, 16, false);
+    if (d.plural !== undefined && typeof d.plural !== "boolean") problems.push(`object "${d.id}" plural must be true or false`);
   }
   const zoneById = new Map(pack.zones.map((z) => [z.id, z]));
   for (const z of pack.zones) {

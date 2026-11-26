@@ -1,5 +1,5 @@
 import { loadValidPack, type LessonPack } from "@realia/shared";
-import { RELAY_HTTP_URL } from "../content/pack";
+import { getLessonLink, rememberLessonLink, RELAY_HTTP_URL } from "../content/pack";
 
 // The options page's only two services. Keys live on them, never here:
 // this page sends photos and the brief to meeting-assist, and an
@@ -104,9 +104,20 @@ export function recordCardAudio(pack: LessonPack): Promise<RecordedAudio> {
   return postJson<RecordedAudio>(`${ASSIST_URL}/plan/audio`, { pack });
 }
 
-/** `plan` is the generated teaching plan; a pasted lesson has none. */
-export function savePack(pack: LessonPack, audio: Record<string, string>, plan?: string) {
-  return postJson<{ ok: true; packId: string }>(`${RELAY_HTTP_URL}/packs`, { pack, audio, ...(plan ? { plan } : {}) });
+/** `plan` is the generated teaching plan; a pasted lesson has none. Keeps the lesson's link the relay returns. */
+export async function savePack(pack: LessonPack, audio: Record<string, string>, plan?: string) {
+  const saved = await postJson<{ ok: true; packId: string; link: string }>(`${RELAY_HTTP_URL}/packs`, { pack, audio, ...(plan ? { plan } : {}) });
+  await rememberLessonLink(saved.packId, saved.link);
+  return saved;
+}
+
+/** A lesson's link, or a plain-words error: the file can only be read through it. */
+async function linkOrThrow(packId: string): Promise<string> {
+  const link = await getLessonLink(packId);
+  if (!link) {
+    throw new ServiceError("This browser doesn't have this lesson's link yet. Play it once (as the teacher) or save it here, and it will.");
+  }
+  return `${RELAY_HTTP_URL}${link}`;
 }
 
 export function listPacks() {
@@ -114,19 +125,21 @@ export function listPacks() {
 }
 
 export async function fetchPack(packId: string): Promise<LessonPack> {
-  return loadValidPack(await call<unknown>(`${RELAY_HTTP_URL}/packs/${encodeURIComponent(packId)}`));
+  return loadValidPack(await call<unknown>(await linkOrThrow(packId)));
 }
 
-/** Last lesson's results for a pack, or null if it hasn't been played yet. */
+/** Last lesson's results for a pack, or null if it hasn't been played yet (or this browser has no link). */
 export async function latestSeed(packId: string): Promise<unknown | null> {
   try {
-    return await call<unknown>(`${RELAY_HTTP_URL}/reports/latest-seed?packId=${encodeURIComponent(packId)}`);
+    return await call<unknown>(`${await linkOrThrow(packId)}/seed`);
   } catch {
     return null;
   }
 }
 
 export async function fetchPlan(packId: string): Promise<string | null> {
-  const res = await fetch(`${RELAY_HTTP_URL}/packs/${encodeURIComponent(packId)}/plan`).catch(() => null);
+  const link = await getLessonLink(packId);
+  if (!link) return null;
+  const res = await fetch(`${RELAY_HTTP_URL}${link}/plan`).catch(() => null);
   return res && res.ok ? res.text() : null;
 }

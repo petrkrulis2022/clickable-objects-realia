@@ -9,7 +9,7 @@ import { buildSeed, renderReport } from "./report.js";
 // both): the report prints a localised date.
 
 const ROOT = join(import.meta.dirname, "..");
-const PACKS = join(ROOT, "..", "realia", "public", "packs");
+const PACKS = join(ROOT, "packs");
 const legacyPack = () => loadValidPack(JSON.parse(readFileSync(join(PACKS, "a2-prepositions-place.json"), "utf8")));
 const demoPack = () => loadValidPack(JSON.parse(readFileSync(join(PACKS, "demo-modals.json"), "utf8")));
 

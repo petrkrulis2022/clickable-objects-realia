@@ -9,6 +9,7 @@ import {
   GeneratorError,
   LESSON_SCHEMA,
   regenerateActivity,
+  SYSTEM_PROMPT,
   type LessonBrief,
 } from "./realiaLesson.js";
 import { sampleLesson, scriptedLlm, sentinelJpegBase64 } from "./testSupport.js";
@@ -25,7 +26,7 @@ const brief: LessonBrief = {
 const photo = { filename: "page1.jpg", mediaType: "image/jpeg" as const, base64: sentinelJpegBase64("PAGE-ONE") };
 const ok = (lesson: unknown) => ({ text: JSON.stringify(lesson) });
 const legacyPack = () =>
-  loadValidPack(JSON.parse(readFileSync(join(import.meta.dirname, "..", "..", "realia", "public", "packs", "a2-prepositions-place.json"), "utf8")));
+  loadValidPack(JSON.parse(readFileSync(join(import.meta.dirname, "..", "..", "realia-relay", "packs", "a2-prepositions-place.json"), "utf8")));
 
 test("a well-formed answer becomes a valid pack and a plan, with sorts and gaps — not just place", async () => {
   const llm = scriptedLlm([ok(sampleLesson())]);
@@ -157,7 +158,7 @@ test("regenerating one activity replaces it in place, drops its old zones, and s
       ],
       distractors: [],
     },
-    objects: [{ id: "needn-t", label: "needn't", emoji: "" }],
+    objects: [{ id: "needn-t", label: "needn't", emoji: "", plural: false }],
   };
   const llm = scriptedLlm([ok(replacement)]);
   const { pack } = await regenerateActivity({ brief, pack: first.pack, plan: first.plan, activityId: "g1a" }, llm);
@@ -184,6 +185,16 @@ test("gap distractors come through as wrong-answer chips; a gap without them is 
   assert.equal(retried.attempts, 2);
   const retryText = llm.calls[1].content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("\n");
   assert.match(retryText, /needs at least two distractors/);
+});
+
+test("the generator's plural flag reaches the pack, so a sentence can say 'are'", async () => {
+  const lesson = sampleLesson();
+  lesson.activities[2].pairs.push({ object_id: "scissors", zone_id: "rain" });
+  lesson.activities[2].kind = "sort";
+  const draft = await draftRealiaLesson({ packId: "lesson-test", brief, images: [], documents: [] }, scriptedLlm([ok(lesson)]));
+  assert.equal(draft.pack.draggables.find((d) => d.id === "scissors")?.plural, true);
+  assert.equal(draft.pack.draggables.find((d) => d.id === "mustnt")?.plural, undefined, "singular objects carry no flag");
+  assert.match(SYSTEM_PROMPT, /plural: true/);
 });
 
 test("the schemas only use what structured outputs supports", () => {

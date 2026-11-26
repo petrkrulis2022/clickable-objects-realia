@@ -28,6 +28,11 @@ played) and the approval screen's preview (what the teacher sees) all run
 the same code. It is built to `dist/`, so build it before running the relay
 or meeting-assist on their own (the root `dev:*` scripts do).
 
+The built-in Realia lessons live in `apps/realia-relay/packs`, never in the
+extension: a lesson file holds every answer, so no student's install may carry
+one. The relay serves a lesson's file, plan and results only at its link
+(`/packs/<id>/<token>`), which only the teacher is given.
+
 Ports: realia-relay 8787, vennmeet-relay 8788, screenview-practice 8789,
 meeting-assist 8790. Stop one by its port (`fuser -k 8787/tcp`), never with a
 loose `pkill` pattern — other projects on the same machine run as

@@ -20,6 +20,24 @@ export async function setSelectedPackId(packId: string): Promise<void> {
   await chrome.storage.local.set({ [SELECTED_PACK_KEY]: packId });
 }
 
+// --- Lesson links (/packs/<id>/<token>). The relay gives a lesson's link
+// to the teacher only — when she saves it, and in her teacher-only lesson
+// message — and it is the only way to read the lesson's file, plan or
+// results. Kept in the teacher's browser; a student's never receives one.
+
+const LESSON_LINKS_KEY = "realia.lessonLinks";
+
+export async function rememberLessonLink(packId: string, link: string): Promise<void> {
+  const links = ((await chrome.storage.local.get(LESSON_LINKS_KEY))[LESSON_LINKS_KEY] as Record<string, string> | undefined) ?? {};
+  if (links[packId] === link) return;
+  await chrome.storage.local.set({ [LESSON_LINKS_KEY]: { ...links, [packId]: link } });
+}
+
+export async function getLessonLink(packId: string): Promise<string | null> {
+  const links = (await chrome.storage.local.get(LESSON_LINKS_KEY))[LESSON_LINKS_KEY] as Record<string, string> | undefined;
+  return links?.[packId] ?? null;
+}
+
 /**
  * Where a card's pre-generated audio lives: bundled files ("audio/…")
  * come from the extension; files generated at approval ("/packs/…")

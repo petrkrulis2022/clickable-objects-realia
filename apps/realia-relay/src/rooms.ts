@@ -157,9 +157,12 @@ function viewFor(_room: Room, obj: StageObject, role: Role): StageObject | null 
   return obj;
 }
 
-/** The teacher panel's prompts and answer key, to the teacher alone. Nothing pack-level ever goes to the student. */
-export function sendLesson(room: Room) {
-  if (room.pack) send(room.connections.teacher, { type: "lesson", lesson: teacherLesson(room.pack) });
+/**
+ * The teacher panel's prompts and answer key, and the lesson's link, to
+ * the teacher alone. Nothing pack-level ever goes to the student.
+ */
+export function sendLesson(room: Room, linkFor: (packId: string) => string) {
+  if (room.pack) send(room.connections.teacher, { type: "lesson", lesson: { ...teacherLesson(room.pack), link: linkFor(room.pack.id) } });
 }
 
 /** The room state as `role` is allowed to see it. */
